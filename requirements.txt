@@ -1,0 +1,22 @@
+# FastAPI & server
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+
+# Fuzzy matching
+rapidfuzz==3.6.1
+
+# Embeddings (semantic similarity)
+sentence-transformers==2.3.1
+
+# Database
+sqlalchemy==2.0.25
+PyMySQL==1.1.0
+
+# HTTP client for LLM API
+httpx==0.26.0
+
+# Config & env
+pydantic-settings==2.1.0
+
+# Utilities
+numpy==1.26.3
