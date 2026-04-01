@@ -1,74 +1,326 @@
-"""LLM validation using Dvara LLM API (configurable)."""
-import json
-import httpx
-from app.config import get_settings
-
-
-def _call_dvara_llm(model_name: str, prompt: str) -> str:
-    """
-    Call Dvara LLM API. Adapt URL/body to your actual API.
-    Expects response to contain generated text (e.g. JSON).
-    """
-    settings = get_settings()
-    url = f"{settings.llm_base_url.rstrip('/')}/v1/chat/completions"
-    headers = {"Content-Type": "application/json"}
-    if settings.llm_api_key:
-        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
-    body = {
-        "model": model_name or settings.llm_model_name,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 2048,
-    }
-    with httpx.Client(timeout=30.0) as client:
-        resp = client.post(url, json=body, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
-    # Common shape: choices[0].message.content
-    choices = data.get("choices") or []
-    if not choices:
-        return ""
-    msg = choices[0].get("message") or {}
-    return (msg.get("content") or "").strip()
-
-
-def validate_mapping_with_llm(
-    model_name: str,
-    lms_columns: list[str],
-    client_columns: list[str],
-    mapping_suggestions: list[dict],
-) -> list[dict]:
-    """
-    Ask LLM to validate/improve mapping and return final JSON list of
-    { "client_column", "lms_column", "confidence" }.
-    If API fails or response is not valid JSON, returns mapping_suggestions unchanged.
-    """
-    settings = get_settings()
-    model = model_name or settings.llm_model_name
-    prompt = f"""You are a column mapping AI for a Loan Origination System.
-
-LMS Columns (target):
-{json.dumps(lms_columns, indent=2)}
-
-Client Columns (source):
-{json.dumps(client_columns, indent=2)}
-
-Suggested Mapping (improve if needed, keep same structure):
-{json.dumps(mapping_suggestions, indent=2)}
-
-Return ONLY a valid JSON array of objects with keys: client_column, lms_column, confidence (0-1).
-No markdown, no explanation. Example: [{{"client_column":"full_name","lms_column":"name","confidence":0.95}}]
 """
+services/llm_service.py
+Calls the Dvara gateway and parses the response.
+
+Gateway contract (confirmed from Postman):
+  POST form-data
+    task = <rendered context block>
+           ── one field, one value ──
+           The gateway fetches the base prompt template from the platform
+           and merges it with this context block server-side.
+           No base template text is sent from this service.
+
+Value block format (what goes into `task`):
+  {
+  Client: HDFC Bank
+  Process: Home Loan Origination
+  Entity scope: APPLICANT
+
+  AVAILABLE INTERNAL excel_key VALUES:
+  APPLICANTFIRSTNAME | First name of applicant | loanAccount.customer.firstName
+  ...
+
+  SEMANTIC SHORTCUTS:
+  dateofbirth → APPLICANTDATEOFBIRTH (seen in 87 partners)
+  ...
+
+  FIELDS TO MAP:
+  field_name | column_category
+  ...
+  }
+
+Response envelope:
+  {
+    "status": "completed",
+    "workflow_name": "...",
+    "workflow_id": "...",
+    "result": {
+      "result": "```json\\n{ ... }\\n```"
+    }
+  }
+
+LLM output format (flat pipe-delimited):
+  {
+    "Date_of_Birth": "APPLICANTDATEOFBIRTH|loanAccount.customer.dateOfBirth|0.97|SEMANTIC|reason",
+    "Aadhar_Front":  "DOCUMENTNAME||0.90|PATTERN|aadhaar keyword"
+  }
+  Each value = matched_excel_key | json_key | confidence | matched_pattern | reasoning
+"""
+
+import json
+import logging
+import re
+from typing import Any, Dict, List, Optional
+
+import requests
+
+logger = logging.getLogger(__name__)
+
+# Keys that are NEVER partner field names — gateway envelope keys
+ENVELOPE_KEYS = {"result", "error", "status", "message", "data", "output", "response"}
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _normalize_key(key: str) -> str:
+    return re.sub(r"[\s_\-\.]", "", key).lower()
+
+
+def _strip_markdown(text: str) -> str:
+    if not isinstance(text, str):
+        return text
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = re.sub(r"^```(?:json)?\s*", "", stripped, flags=re.MULTILINE)
+        stripped = re.sub(r"\s*```\s*$",       "", stripped, flags=re.MULTILINE)
+    return stripped.strip()
+
+
+def _is_mapping_dict(d: dict) -> bool:
+    if not d:
+        return False
+    non_env = [k for k in d if k not in ENVELOPE_KEYS]
+    if not non_env:
+        return False
+    samples = [d[k] for k in non_env[:5] if isinstance(d[k], str)]
+    if not samples:
+        return False
+    return all(v.count("|") >= 4 for v in samples)
+
+
+def _unwrap_envelope(data: Any, depth: int = 0) -> Optional[dict]:
+    if depth > 6:
+        return None
+    if isinstance(data, str):
+        cleaned = _strip_markdown(data)
+        try:
+            return _unwrap_envelope(json.loads(cleaned), depth + 1)
+        except (json.JSONDecodeError, ValueError):
+            return None
+    if isinstance(data, list):
+        return _unwrap_envelope(data[0], depth + 1) if data else None
+    if not isinstance(data, dict):
+        return None
+    if _is_mapping_dict(data):
+        logger.info(f"✓ Found mapping dict at depth={depth} with {len(data)} keys")
+        return data
+    if "mappings" in data and isinstance(data["mappings"], list):
+        return data
+    for key in ("result", "data", "output", "response", "content", "text"):
+        if key in data:
+            found = _unwrap_envelope(data[key], depth + 1)
+            if found is not None:
+                return found
+    for key, value in data.items():
+        if key not in ENVELOPE_KEYS:
+            found = _unwrap_envelope(value, depth + 1)
+            if found is not None:
+                return found
+    return None
+
+
+# ── Response parsers ───────────────────────────────────────────────────────────
+
+def _parse_pipe_value(
+    partner_field: str,
+    value_str: str,
+    entity_context: Dict[str, Dict],
+) -> Optional[Dict[str, Any]]:
+    parts = value_str.split("|", 4)
+    if len(parts) != 5:
+        logger.warning(
+            f"Skipping malformed value for '{partner_field}': "
+            f"{value_str!r} (expected 5 parts, got {len(parts)})"
+        )
+        return None
+    matched_excel_key, json_key, confidence_str, matched_pattern, reasoning = parts
     try:
-        raw = _call_dvara_llm(model, prompt)
-        # Strip markdown code block if present
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-            raw = raw.strip()
-        arr = json.loads(raw)
-        if isinstance(arr, list):
-            return arr
-    except (httpx.HTTPError, json.JSONDecodeError, KeyError):
-        pass
-    return mapping_suggestions
+        confidence = float(confidence_str.strip())
+    except ValueError:
+        logger.warning(f"Invalid confidence '{confidence_str}' for '{partner_field}', defaulting to 0.0")
+        confidence = 0.0
+    ctx = entity_context.get(partner_field, {})
+    return {
+        "partner_field":     partner_field,
+        "column_category":   ctx.get("column_category"),
+        "entity":            ctx.get("entity", "OTHER"),
+        "matched_excel_key": matched_excel_key.strip() or None,
+        "json_key":          json_key.strip(),
+        "confidence":        round(confidence, 4),
+        "match_type":        f"llm_{matched_pattern.strip().lower()}",
+        "reasoning":         reasoning.strip(),
+        "needs_review":      confidence < 0.80,
+        "winning_engine":    "llm",
+    }
+
+
+def _parse_structured_item(
+    item: Dict[str, Any],
+    entity_context: Dict[str, Dict],
+) -> Optional[Dict[str, Any]]:
+    partner_field = item.get("client_column", "")
+    if not partner_field:
+        return None
+    ctx        = entity_context.get(partner_field, {})
+    confidence = float(item.get("confidence", 0.0))
+    return {
+        "partner_field":     partner_field,
+        "column_category":   ctx.get("column_category") or item.get("column_category"),
+        "entity":            ctx.get("entity", "OTHER"),
+        "matched_excel_key": (item.get("matched_excel_key") or "").strip() or None,
+        "json_key":          (item.get("json_key") or "").strip(),
+        "confidence":        round(confidence, 4),
+        "match_type":        f"llm_{(item.get('matched_pattern') or 'semantic').strip().lower()}",
+        "reasoning":         (item.get("reasoning") or "").strip(),
+        "needs_review":      confidence < 0.80,
+        "winning_engine":    "llm",
+    }
+
+
+# ── Main service ───────────────────────────────────────────────────────────────
+
+class LLMService:
+
+    def __init__(self, settings):
+        self.url        = settings.llm_gateway_url
+        self.token      = settings.llm_gateway_token
+        # Form-data field name — confirmed "task" from Postman, configurable via .env
+        self.task_field = getattr(settings, "llm_task_field", "task")
+
+    # ── Send ──────────────────────────────────────────────────────────────────
+
+    def _send(self, rendered_context: str) -> dict:
+        """
+        POST rendered_context to the gateway as form-data:
+          task = <rendered_context>
+
+        The gateway reads this field, fetches the stored base prompt from
+        the platform, merges them, and returns LLM output.
+        We never send the base template — the platform owns it.
+        """
+        headers = {"Authorization": f"Bearer {self.token}"}
+        payload = {self.task_field: rendered_context}
+
+        logger.info(
+            f"→ Gateway POST  field={self.task_field!r}  "
+            f"value_length={len(rendered_context)} chars"
+        )
+
+        try:
+            resp = requests.post(self.url, headers=headers, data=payload, timeout=600)
+            resp.raise_for_status()
+            body = resp.json()
+        except requests.RequestException as e:
+            logger.error(f"Gateway request failed: {e}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Gateway returned non-JSON: {e}")
+            raise
+
+        logger.debug(
+            f"Gateway top-level keys: "
+            f"{list(body.keys()) if isinstance(body, dict) else type(body)}"
+        )
+
+        mapping_dict = _unwrap_envelope(body)
+        if mapping_dict is None:
+            raise ValueError(
+                f"Could not find mapping dict in gateway response: {str(body)[:300]}"
+            )
+        return mapping_dict
+
+    # ── Parse ─────────────────────────────────────────────────────────────────
+
+    def _parse(
+        self,
+        mapping_dict: dict,
+        entity_context: Dict[str, Dict],
+    ) -> List[Dict[str, Any]]:
+        allowed_normalized: Dict[str, str] = {
+            _normalize_key(k): k for k in entity_context
+        }
+        logger.info(f"Whitelist: {list(allowed_normalized.keys())}")
+        results: List[Dict[str, Any]] = []
+
+        # Structured array format: {"mappings": [...]}
+        if "mappings" in mapping_dict and isinstance(mapping_dict["mappings"], list):
+            logger.info(f"Structured format — {len(mapping_dict['mappings'])} items")
+            for item in mapping_dict["mappings"]:
+                partner_field = item.get("client_column", "")
+                norm = _normalize_key(partner_field)
+                if entity_context and norm not in allowed_normalized:
+                    logger.warning(f"Hallucinated field '{partner_field}' — skipping")
+                    continue
+                item = {**item, "client_column": allowed_normalized.get(norm, partner_field)}
+                m = _parse_structured_item(item, entity_context)
+                if m:
+                    results.append(m)
+            return results
+
+        # Flat pipe-delimited format
+        logger.info(f"Flat format — {len(mapping_dict)} keys")
+        for partner_field, value_str in mapping_dict.items():
+            if partner_field in ENVELOPE_KEYS:
+                continue
+            norm = _normalize_key(partner_field)
+            if entity_context and norm not in allowed_normalized:
+                logger.warning(f"Hallucinated field '{partner_field}' — skipping")
+                continue
+            original_key = allowed_normalized.get(norm, partner_field)
+            if not isinstance(value_str, str):
+                logger.warning(f"Skipping '{partner_field}' — value is {type(value_str).__name__}")
+                continue
+            if value_str.count("|") < 4:
+                logger.warning(f"Skipping '{partner_field}' — only {value_str.count('|')} pipes (need 4)")
+                continue
+            m = _parse_pipe_value(original_key, value_str, entity_context)
+            if m:
+                results.append(m)
+
+        logger.info(f"Parsed {len(results)} mappings")
+        return results
+
+    # ── Public entry point ────────────────────────────────────────────────────
+
+    def map_fields(self, entity_prompts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        One gateway call per entity group.
+        entity_prompt["rendered_prompt"] is the filled context block —
+        it goes straight into the `task` form-data field.
+        """
+        all_mappings: List[Dict[str, Any]] = []
+
+        for i, ep in enumerate(entity_prompts, 1):
+            entity         = ep["entity"]
+            rendered       = ep["rendered_prompt"]
+            entity_context = ep["entity_context"]
+
+            logger.info(
+                f"[{i}/{len(entity_prompts)}] entity={entity}  "
+                f"fields={len(ep['fields'])}  "
+                f"context_keys={list(entity_context.keys())}"
+            )
+
+            try:
+                mapping_dict = self._send(rendered)
+                mappings     = self._parse(mapping_dict, entity_context)
+                logger.info(f"  → {len(mappings)} mappings for entity={entity}")
+                all_mappings.extend(mappings)
+
+            except Exception as e:
+                logger.error(f"Failed for entity={entity}: {e}", exc_info=True)
+                for field_name, ctx in entity_context.items():
+                    all_mappings.append({
+                        "partner_field":     field_name,
+                        "column_category":   ctx.get("column_category"),
+                        "entity":            ctx.get("entity", entity),
+                        "matched_excel_key": None,
+                        "json_key":          "",
+                        "confidence":        0.0,
+                        "match_type":        "llm_error",
+                        "reasoning":         f"LLM call failed: {e}",
+                        "needs_review":      True,
+                        "winning_engine":    "none",
+                    })
+
+        return all_mappings

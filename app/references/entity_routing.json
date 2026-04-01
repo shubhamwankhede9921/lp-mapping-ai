@@ -1,0 +1,99 @@
+{
+  "grouping_to_entity": {
+    "LOAN_APPLICANT": "APPLICANT",
+    "CUSTOMER_DETAILS_LEFT": "OTHER",
+    "PRELIMINARY_LOAN_INFORMATION_LEFT": "LOAN",
+    "PRELIMINARY_LOAN_INFORMATION_RIGHT": "LOAN",
+    "Select UI Group": "OTHER",
+    "VEHICLE_DETAILS": "OTHER",
+    "LOAN_SECTION_PAYLOADS_DATATABLE_TEST": "LOAN",
+    "CUSTOMER_DETAILS_RIGHT": "OTHER",
+    "LOAN_PARAMETERS_LEFT": "LOAN",
+    "LOAN_PARAMETERS_RIGHT": "LOAN",
+    "LOAN_DOCUMENTS": "LOAN",
+    "View Uploads": "DOCUMENT",
+    "LOAN_COAPPLICANT": "COAPPLICANT",
+    "LOAN_COAPPLICANT1": "COAPPLICANT1",
+    "LOAN_SECTION_GROUP1": "LOAN",
+    "LOAN_SECTION_PAYLOADS_DATATABLE": "LOAN",
+    "OTHER_DETAILS": "OTHER",
+    "LOAN_COAPPLICANT3": "COAPPLICANT3",
+    "LOAN_COAPPLICANT2": "COAPPLICANT2",
+    "LOAN_COAPPLICANT4": "COAPPLICANT4",
+    "Loan Documents": "LOAN",
+    "CREDIT_BUREAU_DETAILS_RIGHT": "OTHER",
+    "KYC_DETAILS_LEFT": "OTHER",
+    "ADDRESS_DETAILS_RIGHT": "OTHER",
+    "BRANCH_DETAILS_RIGHT": "OTHER",
+    "ADDRESS_DETAILS_LEFT": "OTHER",
+    "LOAN_INFORMATION_RIGHT": "LOAN",
+    "BANK_DETAILS": "OTHER",
+    "BRANCH_DETAILS_LEFT": "OTHER",
+    "COAPPLICANT_CREDIT_BUREAU_DETAILS_RIGHT": "COAPPLICANT",
+    "OFFICE_BUSINESS_DETAILS_LEFT": "OTHER",
+    "OFFICE_BUSINESS_DETAILS_RIGHT": "OTHER",
+    "CREDIT_BUREAU_DETAILS_LEFT": "OTHER",
+    "COAPPLICANT_CREDIT_BUREAU_DETAILS_LEFT": "COAPPLICANT",
+    "COAPPLICANT_ADDRESS_DETAILS_LEFT": "COAPPLICANT",
+    "COAPPLICANT_ADDRESS_DETAILS_RIGHT": "COAPPLICANT",
+    "DISBURSEMENT_DETAILS_LEFT": "LOAN",
+    "VEIRFICATION_CHECKS_LEFT": "OTHER",
+    "VEIRFICATION_CHECKS_RIGHT": "OTHER",
+    "INCOME_ASSEMENT_LEFT": "OTHER",
+    "LOAN_INFORMATION_LEFT": "LOAN",
+    "FEE_CHARGES_RIGHT": "FEE",
+    "FEES_CHARGES_LEFT": "FEE",
+    "KYC_DETAILS_RIGHT": "OTHER",
+    "INCOME_ASSEMENT_RIGHT": "OTHER",
+    "COAPPLICANT_OFFICE_DETAILS_LEFT": "COAPPLICANT",
+    "COAPPLICANT_KYC_DETAILS_LEFT": "COAPPLICANT",
+    "HOUSE_DETAILS": "OTHER",
+    "NOMINEE_DETAILS_LEFT": "OTHER",
+    "DISBURSEMENT_DETAILS_RIGHT": "LOAN",
+    "LOAN_OVERVIEW_LEFT": "LOAN",
+    "LOAN_OVERVIEW_RIGHT": "LOAN",
+    "CUSTOMER_PAYMENT_HISTORY_LEFT": "OTHER",
+    "CUSTOMER_PAYMENT_HISTORY_RIGHT": "OTHER",
+    "CIBIL DETAILS_LEFT": "OTHER",
+    "COAPPLICANT_KYC_DETAILS_RIGHT": "COAPPLICANT"
+  },
+  "keyword_rules": [
+    {
+      "pattern": "coapplicant\\d+",
+      "entity": "COAPPLICANT_NUM"
+    },
+    {
+      "pattern": "coapplicant",
+      "entity": "COAPPLICANT"
+    },
+    {
+      "pattern": "guarantor",
+      "entity": "GUARANTOR"
+    },
+    {
+      "pattern": "applicant",
+      "entity": "APPLICANT"
+    },
+    {
+      "pattern": "loan|disburs|repay|emi|interest",
+      "entity": "LOAN"
+    },
+    {
+      "pattern": "document|attach|file|upload|proof",
+      "entity": "DOCUMENT"
+    },
+    {
+      "pattern": "fee|charge|penalt",
+      "entity": "FEE"
+    },
+    {
+      "pattern": "parameter|config|setting",
+      "entity": "PARAMETER"
+    }
+  ],
+  "metadata": {
+    "total_groupings": 56,
+    "generated_at": "2026-03-27T05:07:55.727674Z",
+    "source": "generic_excel_upload_definition_fields (ui_grouping)"
+  }
+}

@@ -1,77 +1,87 @@
-"""Semantic similarity using sentence embeddings."""
-from __future__ import annotations
+"""
+services/embedding_engine.py
+Layer 2b — sentence-transformers cosine similarity (optional).
+Install: pip install sentence-transformers
+"""
+
+import logging
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from typing import Optional
 
-# Lazy load model to avoid slow startup when not used
-_model = None
-_embedding_dim: Optional[int] = None
+logger = logging.getLogger(__name__)
 
+try:
+    from sentence_transformers import SentenceTransformer
+    HAS_ST = True
+except ImportError:
+    HAS_ST = False
+    logger.warning("sentence-transformers not installed — embedding engine disabled")
 
-def _get_model():
-    global _model
-    if _model is None:
-        from sentence_transformers import SentenceTransformer
-        # Lightweight model; swap for larger one if needed
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
-    return _model
-
-
-def embed(texts: list[str]) -> np.ndarray:
-    """Get embeddings for a list of strings. Shape (n, dim)."""
-    if not texts:
-        return np.array([]).reshape(0, 384)
-    model = _get_model()
-    return model.encode(texts, convert_to_numpy=True)
+ENTITY_ROLE = {
+    "APPLICANT": "CUSTOMER", "COAPPLICANT": "COAPPLICANT",
+    "GUARANTOR": "GUARANTOR", "LOAN": "LOAN",
+}
 
 
-def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
-    """Single pair cosine similarity. a, b are 1d arrays."""
-    na = np.asarray(a, dtype=float).flatten()
-    nb = np.asarray(b, dtype=float).flatten()
-    if na.size != nb.size or na.size == 0:
-        return 0.0
-    dot = float(np.dot(na, nb))
-    norm_a = float(np.linalg.norm(na))
-    norm_b = float(np.linalg.norm(nb))
-    if norm_a == 0 or norm_b == 0:
-        return 0.0
-    return dot / (norm_a * norm_b)
+class EmbeddingEngine:
+    MODEL = "all-MiniLM-L6-v2"
 
+    def __init__(self, field_dictionary: Dict[str, Any], threshold: float = 0.60):
+        if not HAS_ST:
+            raise ImportError("pip install sentence-transformers")
+        self.threshold = threshold
+        self.model = SentenceTransformer(self.MODEL)
 
-def find_best_embedding_match(
-    client_column: str,
-    lms_columns: list[str],
-    lms_embeddings: Optional[np.ndarray] = None,
-) -> tuple[str | None, float]:
-    """
-    Find best LMS column by embedding similarity.
-    If lms_embeddings is provided, shape must be (len(lms_columns), dim).
-    Returns (lms_column, score in 0-1) or (None, 0).
-    """
-    if not lms_columns:
-        return (None, 0.0)
-    model = _get_model()
-    client_emb = model.encode([client_column], convert_to_numpy=True)
-    if lms_embeddings is not None and lms_embeddings.shape[0] == len(lms_columns):
-        lms_em = lms_embeddings
-    else:
-        lms_em = model.encode(lms_columns, convert_to_numpy=True)
-    best_idx = -1
-    best_score = 0.0
-    for i in range(len(lms_columns)):
-        sim = cosine_similarity(client_emb[0], lms_em[i])
-        if sim > best_score:
-            best_score = sim
-            best_idx = i
-    if best_idx < 0:
-        return (None, 0.0)
-    return (lms_columns[best_idx], float(best_score))
+        self._corpus: List[Tuple[str, str, str]] = []  # (text, excel_key, role)
+        for ek, info in field_dictionary.get("by_excel_key", {}).items():
+            desc = (info.get("description", "") or "").strip()
+            role = info.get("role") or info.get("json_key_role", "")
+            text = f"{ek} {desc}".strip()
+            self._corpus.append((text, ek, role))
 
+        logger.info(f"EmbeddingEngine: encoding {len(self._corpus)} entries …")
+        texts = [c[0] for c in self._corpus]
+        self._embs = self.model.encode(texts, normalize_embeddings=True)
+        logger.info("EmbeddingEngine ready")
 
-def compute_lms_embeddings(lms_columns: list[str]) -> np.ndarray:
-    """Precompute embeddings for all LMS columns (for reuse)."""
-    if not lms_columns:
-        return np.array([]).reshape(0, 384)
-    return embed(lms_columns)
+    def match(self, field_name: str, entity: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        q = self.model.encode([field_name], normalize_embeddings=True)[0]
+        sims = np.dot(self._embs, q)
+        idx = int(np.argmax(sims))
+        sim = float(sims[idx])
+        if sim < self.threshold:
+            return None
+
+        _, ek, role = self._corpus[idx]
+        expected = ENTITY_ROLE.get(entity or "", "")
+        conf = sim * (0.90 if (expected and role and role != expected) else 1.0)
+
+        if conf < self.threshold:
+            return None
+
+        return {
+            "matched_excel_key": ek,
+            "confidence":        round(conf, 4),
+            "match_type":        "embedding",
+            "reasoning":         f"Embedding: '{field_name}' → '{ek}' sim={sim:.3f}",
+            "embedding_score":   round(conf, 4),
+            "winning_engine":    "embedding",
+        }
+
+    def run_batch(
+        self, unmatched: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict], List[Dict]]:
+        matched, still_unmatched = [], []
+        for f in unmatched:
+            result = self.match(
+                field_name=f.get("partner_field", f.get("field_name", "")),
+                entity=f.get("entity"),
+            )
+            if result:
+                merged = {**f, **result, "needs_review": result["confidence"] < 0.80}
+                matched.append(merged)
+            else:
+                still_unmatched.append(f)
+        logger.info(f"EmbeddingEngine: matched={len(matched)}, still_unmatched={len(still_unmatched)}")
+        return matched, still_unmatched

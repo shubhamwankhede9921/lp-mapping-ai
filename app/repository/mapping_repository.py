@@ -4,7 +4,7 @@ from sqlalchemy import Column, Integer, String, Float, DateTime
 from sqlalchemy.orm import Session
 from collections import defaultdict
 
-from app.repository.database import Base, get_db, init_db
+from app.repository.database import Base
 
 
 class ExistingColumnMapping(Base):

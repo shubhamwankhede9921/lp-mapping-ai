@@ -1,5 +1,18 @@
-from .mapping_service import generate_mapping, generate_mapping_with_tiers
-from .rule_engine import find_best_rule_match, match_score
-from .fuzzy_engine import find_best_fuzzy_match, fuzzy_score
-from .embedding_engine import find_best_embedding_match, compute_lms_embeddings
-from .llm_service import validate_mapping_with_llm
+"""
+services/__init__.py
+"""
+
+from .embedding_engine import EmbeddingEngine
+from .fuzzy_engine import FuzzyEngine
+from .llm_service import LLMService
+from .prompt_builder import build_entity_prompts, fill_prompt
+from . import mapping_service
+
+__all__ = [
+    "EmbeddingEngine",
+    "FuzzyEngine",
+    "LLMService",
+    "build_entity_prompts",
+    "fill_prompt",
+    "mapping_service",
+]
