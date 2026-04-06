@@ -274,14 +274,102 @@ def run_hybrid_llm(
     remaining = list(unmatched_fields)
     results:   List[Dict] = []
     breakdown = {"fuzzy": 0, "embedding": 0, "llm": 0, "unmatched": 0}
+    review_threshold = getattr(settings, "review_threshold", 0.80)
+    review_candidates_by_field: Dict[str, Dict] = {}
+
+    def _field_id(item: Dict[str, Any]) -> str:
+        return item.get("partner_field") or item.get("field_name") or ""
+
+    def _candidate_payload(item: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "engine": item.get("winning_engine") or item.get("match_type"),
+            "matched_excel_key": item.get("matched_excel_key"),
+            "json_key": item.get("json_key", ""),
+            "confidence": item.get("confidence", 0.0),
+            "reasoning": item.get("reasoning", ""),
+        }
+
+    def _queue_review_candidate(item: Dict[str, Any]) -> None:
+        field_id = _field_id(item)
+        if not field_id:
+            return
+
+        entry = review_candidates_by_field.get(field_id)
+        if not entry:
+            entry = {
+                **item,
+                "field_name": item.get("field_name") or item.get("partner_field"),
+                "partner_field": item.get("partner_field") or item.get("field_name"),
+                "candidate_matches": [],
+            }
+            review_candidates_by_field[field_id] = entry
+
+        candidate = _candidate_payload(item)
+        existing = entry["candidate_matches"]
+        for idx, current in enumerate(existing):
+            if current.get("engine") == candidate["engine"]:
+                if candidate["confidence"] > current.get("confidence", 0.0):
+                    existing[idx] = candidate
+                break
+        else:
+            existing.append(candidate)
+
+        if item.get("confidence", 0.0) >= entry.get("confidence", 0.0):
+            entry.update({
+                "matched_excel_key": item.get("matched_excel_key"),
+                "json_key": item.get("json_key", ""),
+                "confidence": item.get("confidence", 0.0),
+                "match_type": item.get("match_type", entry.get("match_type")),
+                "reasoning": item.get("reasoning", ""),
+                "needs_review": True,
+                "winning_engine": item.get("winning_engine", entry.get("winning_engine")),
+            })
+            if item.get("fuzzy_score") is not None:
+                entry["fuzzy_score"] = item.get("fuzzy_score")
+            if item.get("embedding_score") is not None:
+                entry["embedding_score"] = item.get("embedding_score")
+
+    def _clear_review_candidate(item: Dict[str, Any]) -> None:
+        field_id = _field_id(item)
+        if field_id:
+            review_candidates_by_field.pop(field_id, None)
+
+    def _dedupe_fields(items: List[Dict]) -> List[Dict]:
+        deduped: Dict[str, Dict] = {}
+        for item in items:
+            field_id = _field_id(item)
+            if field_id:
+                deduped[field_id] = item
+        return list(deduped.values())
+
+    def _split_by_confidence(items: List[Dict]) -> Tuple[List[Dict], List[Dict]]:
+        accepted: List[Dict] = []
+        review: List[Dict] = []
+        for item in items:
+            if item.get("confidence", 0.0) < review_threshold:
+                _queue_review_candidate(item)
+                review.append(item)
+            else:
+                _clear_review_candidate(item)
+                accepted.append(item)
+        return accepted, review
 
     # 2a — Fuzzy
     if use_fuzzy and remaining and HAS_RAPIDFUZZ:
         try:
             fe = FuzzyEngine(field_dictionary, threshold=settings.fuzzy_threshold)
             fuzzy_matched, remaining = fe.run_batch(remaining)
-            results.extend(fuzzy_matched)
-            breakdown["fuzzy"] = len(fuzzy_matched)
+            accepted, review = _split_by_confidence(fuzzy_matched)
+            if review:
+                logger.info(
+                    "FuzzyEngine routed %d low-confidence fields to LLM review "
+                    "(threshold=%.2f)",
+                    len(review),
+                    review_threshold,
+                )
+            results.extend(accepted)
+            breakdown["fuzzy"] = len(accepted)
+            remaining = _dedupe_fields(remaining + review)
         except Exception as e:
             logger.warning(f"FuzzyEngine skipped: {e}")
 
@@ -290,18 +378,44 @@ def run_hybrid_llm(
         try:
             ee = EmbeddingEngine(field_dictionary, threshold=settings.embedding_threshold)
             emb_matched, remaining = ee.run_batch(remaining)
-            results.extend(emb_matched)
-            breakdown["embedding"] = len(emb_matched)
+            accepted, review = _split_by_confidence(emb_matched)
+            if review:
+                logger.info(
+                    "EmbeddingEngine routed %d low-confidence fields to LLM review "
+                    "(threshold=%.2f)",
+                    len(review),
+                    review_threshold,
+                )
+            results.extend(accepted)
+            breakdown["embedding"] = len(accepted)
+            remaining = _dedupe_fields(remaining + review)
         except Exception as e:
             logger.warning(f"EmbeddingEngine skipped: {e}")
 
     # 2c — LLM
     # Re-build prompts scoped to remaining fields only.
     # rendered_prompt = context block → posted as `task` to gateway.
-    if use_llm and remaining:
+    llm_input_fields = list(review_candidates_by_field.values()) + [
+        item for item in remaining
+        if _field_id(item) not in review_candidates_by_field
+    ]
+    if use_llm and llm_input_fields:
         try:
+            low_conf_fields_for_llm = list(review_candidates_by_field.values())
+            low_conf_candidate_count = sum(
+                len(item.get("candidate_matches") or [])
+                for item in low_conf_fields_for_llm
+            )
+            logger.info(
+                "Preparing LLM input: total_fields=%d, low_confidence_fields=%d, "
+                "low_confidence_candidates=%d, threshold=%.2f",
+                len(llm_input_fields),
+                len(low_conf_fields_for_llm),
+                low_conf_candidate_count,
+                review_threshold,
+            )
             fresh_prompts = build_entity_prompts(
-                unmatched_fields=remaining,
+                unmatched_fields=llm_input_fields,
                 field_dictionary=field_dictionary,
                 alias_registry=alias_registry,
                 prompt_template="",   # gateway owns the base template
@@ -310,14 +424,34 @@ def run_hybrid_llm(
             )
             llm_svc      = LLMService(settings)
             llm_mappings = llm_svc.map_fields(fresh_prompts)
+            resolved_fields = {
+                m.get("partner_field") or m.get("field_name")
+                for m in llm_mappings
+                if m.get("partner_field") or m.get("field_name")
+            }
             results.extend(llm_mappings)
             breakdown["llm"] = len(llm_mappings)
-            remaining = []
+            remaining = [
+                f for f in remaining
+                if (f.get("partner_field") or f.get("field_name")) not in resolved_fields
+            ]
+            review_candidates_by_field = {
+                field_id: item
+                for field_id, item in review_candidates_by_field.items()
+                if field_id not in resolved_fields
+            }
         except Exception as e:
             logger.error(f"LLMService error: {e}", exc_info=True)
 
+    if review_candidates_by_field:
+        results.extend(review_candidates_by_field.values())
+
     # Still unmatched after all engines
+    unmatched_count = 0
     for f in remaining:
+        field_id = _field_id(f)
+        if field_id and field_id in review_candidates_by_field:
+            continue
         results.append({
             **f,
             "matched_excel_key": None,
@@ -328,7 +462,8 @@ def run_hybrid_llm(
             "needs_review":      True,
             "winning_engine":    "none",
         })
-    breakdown["unmatched"] = len(remaining)
+        unmatched_count += 1
+    breakdown["unmatched"] = unmatched_count
 
     return results, breakdown
 

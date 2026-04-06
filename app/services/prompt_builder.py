@@ -83,6 +83,29 @@ def _fields_block(fields: List[Dict[str, Any]]) -> str:
     return "\n".join(lines) or "(none)"
 
 
+def _candidate_matches_block(fields: List[Dict[str, Any]]) -> str:
+    lines = []
+    for f in fields:
+        name = f.get("field_name") or f.get("partner_field", "")
+        candidates = f.get("candidate_matches") or []
+        if not name or not candidates:
+            continue
+        lines.append(f"{name}:")
+        for candidate in candidates:
+            engine = candidate.get("engine", "unknown")
+            excel_key = candidate.get("matched_excel_key") or "(none)"
+            json_key = candidate.get("json_key") or ""
+            confidence = candidate.get("confidence", 0.0)
+            reasoning = candidate.get("reasoning") or ""
+            line = f"  {engine} | {excel_key} | confidence={confidence:.4f}"
+            if json_key:
+                line += f" | {json_key}"
+            if reasoning:
+                line += f" | {reasoning}"
+            lines.append(line)
+    return "\n".join(lines) or "(none)"
+
+
 def _build_context_block(
     entity: str,
     fields: List[Dict[str, Any]],
@@ -116,6 +139,7 @@ def _build_context_block(
     available = _available_keys_block(entity, field_dictionary)
     shortcuts = _shortcuts_block(alias_registry)
     fields_to = _fields_block(fields)
+    candidates = _candidate_matches_block(fields)
 
     return (
         "{\n"
@@ -131,6 +155,9 @@ def _build_context_block(
         "\n"
         "FIELDS TO MAP:\n"
         f"{fields_to}\n"
+        "\n"
+        "LOW CONFIDENCE ENGINE SUGGESTIONS:\n"
+        f"{candidates}\n"
         "}"
     )
 

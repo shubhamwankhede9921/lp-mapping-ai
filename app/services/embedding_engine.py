@@ -34,11 +34,13 @@ class EmbeddingEngine:
         self.model = SentenceTransformer(self.MODEL)
 
         self._corpus: List[Tuple[str, str, str]] = []  # (text, excel_key, role)
+        self._json_key_map: Dict[str, str] = {}
         for ek, info in field_dictionary.get("by_excel_key", {}).items():
             desc = (info.get("description", "") or "").strip()
             role = info.get("role") or info.get("json_key_role", "")
             text = f"{ek} {desc}".strip()
             self._corpus.append((text, ek, role))
+            self._json_key_map[ek] = info.get("json_key", "")
 
         logger.info(f"EmbeddingEngine: encoding {len(self._corpus)} entries …")
         texts = [c[0] for c in self._corpus]
@@ -67,6 +69,7 @@ class EmbeddingEngine:
             "reasoning":         f"Embedding: '{field_name}' → '{ek}' sim={sim:.3f}",
             "embedding_score":   round(conf, 4),
             "winning_engine":    "embedding",
+            "json_key":          self._json_key_map.get(ek, ""),
         }
 
     def run_batch(
