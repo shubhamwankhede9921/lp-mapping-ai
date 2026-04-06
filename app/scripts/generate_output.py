@@ -25,7 +25,8 @@ def generate_mapping_excel(
     mappings: list[dict],
     output_path: str,
     client_name: str = "",
-    process_name: str = ""
+    process_name: str = "",
+    missing_mandatory: Optional[list[dict]] = None,
 ) -> None:
     """
     Generate a formatted Excel file with the mapping results.
@@ -38,11 +39,10 @@ def generate_mapping_excel(
         client_name: Optional client name for metadata
         process_name: Optional process name for metadata
 
-    FIX (Bug 1): Split mappings into clean vs review BEFORE writing sheets so
-    that needs_review fields appear ONLY in "For Review", not in both sheets.
-    Previously all mappings were passed to Sheet 1 (_populate_mapping_sheet)
-    and then the review subset was also written to Sheet 3 — causing 14
-    duplicate rows.
+    Sheet layout:
+    - Sheet 1: all mappings
+    - Sheet 2: summary
+    - Sheet 3: review-only mappings
     """
     if not HAS_OPENPYXL:
         raise ImportError(
@@ -55,17 +55,21 @@ def generate_mapping_excel(
     if "Sheet" in wb.sheetnames:
         wb.remove(wb["Sheet"])
 
-    # FIX: Split here — cleanly separated before any sheet is written
     review_mappings = [m for m in mappings if m.get("needs_review", False)]
-    clean_mappings  = [m for m in mappings if not m.get("needs_review", False)]
 
-    # Sheet 1: Field Mapping — confirmed (clean) mappings only
+    # Sheet 1: Field Mapping — all mappings
     ws_mapping = wb.create_sheet("Field Mapping", 0)
-    _populate_mapping_sheet(ws_mapping, clean_mappings)
+    _populate_mapping_sheet(ws_mapping, mappings)
 
     # Sheet 2: Summary — uses all mappings for accurate stats
     ws_summary = wb.create_sheet("Summary", 1)
-    _populate_summary_sheet(ws_summary, mappings, client_name, process_name)
+    _populate_summary_sheet(
+        ws_summary,
+        mappings,
+        client_name,
+        process_name,
+        missing_mandatory=missing_mandatory or [],
+    )
 
     # Sheet 3: For Review — needs_review mappings only
     if review_mappings:
@@ -180,7 +184,8 @@ def _populate_summary_sheet(
     ws,
     mappings: list[dict],
     client_name: str = "",
-    process_name: str = ""
+    process_name: str = "",
+    missing_mandatory: Optional[list[dict]] = None,
 ) -> None:
     """
     Populate the Summary sheet with statistics.
@@ -271,6 +276,25 @@ def _populate_summary_sheet(
             row += 1
         if len(review_mappings) > 20:
             ws.cell(row=row, column=3).value = f"... and {len(review_mappings) - 20} more"
+
+    row += 2
+
+    missing_mandatory = missing_mandatory or []
+    ws.cell(row=row, column=1).value = "Mandatory Fields Missing:"
+    ws.cell(row=row, column=1).font = Font(bold=True)
+    ws.cell(row=row, column=2).value = len(missing_mandatory)
+    if missing_mandatory:
+        ws.cell(row=row, column=2).font = Font(bold=True, color="FF0000")
+    row += 1
+
+    if missing_mandatory:
+        ws.cell(row=row, column=2).value = "Excel Key"
+        ws.cell(row=row, column=3).value = "Description"
+        row += 1
+        for item in missing_mandatory:
+            ws.cell(row=row, column=2).value = item.get("excel_key", "")
+            ws.cell(row=row, column=3).value = item.get("description", "")
+            row += 1
 
     row += 2
 
