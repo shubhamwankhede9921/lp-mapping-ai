@@ -30,6 +30,20 @@ from matching_engine import load_references, match_batch, normalize_field
 from llm_mapper import generate_mapping_prompt, build_prompt
 
 
+def _normalize_process_name(process_name: str) -> str:
+    if not process_name:
+        return ""
+    normalized = process_name.strip().upper()
+    aliases = {
+        "ORIGINATION": "ORIGINATION",
+        "ENROLLMENT": "ENROLLMENT",
+        "ENROLMENT": "ENROLLMENT",
+        "COMBINED": "",
+        "SEPARATE": "",
+    }
+    return aliases.get(normalized, normalized)
+
+
 def run_deterministic_pass(input_file, refs, process_name="COMBINED", sheet_filter=None):
     """Run the deterministic matching pass."""
     fields = parse_input(input_file)
@@ -67,6 +81,7 @@ def prepare_llm_context(unmatched_results, refs, client_name="", process_name=""
     # Build entity-scoped field lists from the field dictionary
     field_dict = refs["field_dictionary"]
     alias_reg = refs["alias_registry"]
+    normalized_process = _normalize_process_name(process_name)
 
     # Map entity to role in field dictionary
     ENTITY_TO_ROLE = {
@@ -90,6 +105,12 @@ def prepare_llm_context(unmatched_results, refs, client_name="", process_name=""
 
         # Get fields for this role
         role_fields = field_dict.get("by_role", {}).get(role, [])
+        if normalized_process:
+            role_fields = [
+                f for f in role_fields
+                if not refs["field_dictionary"].get("by_excel_key", {}).get(f.get("excel_key", ""), {}).get("process_names")
+                or normalized_process in refs["field_dictionary"].get("by_excel_key", {}).get(f.get("excel_key", ""), {}).get("process_names", [])
+            ]
 
         # For LOAN role, filter out numbered special fields to keep it focused
         if role == "LOAN":

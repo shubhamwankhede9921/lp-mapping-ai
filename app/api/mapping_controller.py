@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import shutil
 import tempfile
 import time
@@ -86,6 +87,12 @@ def _safe_unlink(path: Optional[str]) -> None:
             os.unlink(path)
         except PermissionError:
             logger.debug(f"Could not delete temp file (Windows lock): {path}")
+
+
+def _sanitize_path_component(value: str, fallback: str = "output") -> str:
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", (value or "").strip())
+    cleaned = re.sub(r"\s+", "_", cleaned).strip(" ._")
+    return cleaned or fallback
 
 
 def _request_to_builder_input(request: LOSJsonRequest) -> Dict:
@@ -248,6 +255,12 @@ async def hybrid_llm(
         )
 
         all_mappings = det_results + phase2
+        all_mappings = svc.refine_parameter_buckets(
+            all_mappings=all_mappings,
+            settings=settings,
+            client_name=client_name,
+            process_name=process_name,
+        )
         stats_raw    = svc.compute_stats(all_mappings)
 
         # ── persist to TARGET DB ───────────────────────────────────────────────
@@ -334,6 +347,12 @@ async def full_pipeline(
         )
 
         all_mappings = det_results + phase2
+        all_mappings = svc.refine_parameter_buckets(
+            all_mappings=all_mappings,
+            settings=settings,
+            client_name=client_name,
+            process_name=process_name,
+        )
 
         # ── Persist to TARGET DB ───────────────────────────────────────────────
         #
@@ -383,9 +402,12 @@ async def full_pipeline(
         schema_result = generate_schema(builder_input)
 
         # ── Excel output ───────────────────────────────────────────────────────
-        out_dir    = settings.output_path / client_name
+        safe_client_name = _sanitize_path_component(client_name, "client")
+        safe_process_name = _sanitize_path_component(process_name, "process")
+
+        out_dir    = settings.output_path / safe_client_name
         out_dir.mkdir(parents=True, exist_ok=True)
-        excel_path = out_dir / f"mapping_{client_name}_{process_name}.xlsx"
+        excel_path = out_dir / f"mapping_{safe_client_name}_{safe_process_name}.xlsx"
 
         svc.post_process_and_output(
             all_mappings=all_mappings,
@@ -400,11 +422,11 @@ async def full_pipeline(
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.write(excel_path, arcname=excel_path.name)
             zf.writestr(
-                f"nested_mapping_{client_name}_{process_name}.json",
+                f"nested_mapping_{safe_client_name}_{safe_process_name}.json",
                 json.dumps(nested_result["mappings"], indent=2, ensure_ascii=False),
             )
             zf.writestr(
-                f"schema_{client_name}_{process_name}.json",
+                f"schema_{safe_client_name}_{safe_process_name}.json",
                 json.dumps(schema_result["schema"], indent=2, ensure_ascii=False),
             )
 
@@ -416,7 +438,9 @@ async def full_pipeline(
             content=zip_buffer.getvalue(),
             media_type="application/zip",
             headers={
-                "Content-Disposition": f"attachment; filename={client_name}_{process_name}_outputs.zip",
+                "Content-Disposition": (
+                    f"attachment; filename={safe_client_name}_{safe_process_name}_outputs.zip"
+                ),
                 "X-DB-Inserted":       str(db_result["inserted"]),
                 "X-DB-Skipped":        str(db_result["skipped"]),
                 "X-DB-Errors":         str(db_result["errors"]),

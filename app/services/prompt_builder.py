@@ -266,3 +266,56 @@ def build_entity_prompts(
         })
 
     return prompts
+
+
+def build_parameter_classifier_prompt(
+    fields: List[Dict[str, Any]],
+    client_name: str = "",
+    process_name: str = "",
+) -> Dict[str, Any]:
+    """
+    Build a single context block for the parameter bucket classifier gateway.
+
+    Each row format:
+      partner_field | column_category | detected_entity | current_match | current_reasoning
+    """
+    lines = []
+    entity_context: Dict[str, Dict[str, Any]] = {}
+
+    for field in fields:
+        partner_field = field.get("partner_field") or field.get("field_name") or ""
+        if not partner_field:
+            continue
+        column_category = field.get("column_category") or ""
+        entity = field.get("entity") or "OTHER"
+        current_match = field.get("matched_excel_key") or "unmatched"
+        current_reasoning = field.get("reasoning") or ""
+        lines.append(
+            f"{partner_field} | {column_category} | {entity} | {current_match} | {current_reasoning}"
+        )
+        entity_context[partner_field] = {
+            "entity": entity,
+            "column_category": field.get("column_category"),
+            "matched_excel_key": field.get("matched_excel_key"),
+            "reasoning": field.get("reasoning", ""),
+        }
+
+    rendered = (
+        "{\n"
+        f"Client: {client_name or 'Unknown'}\n"
+        f"Process: {process_name or 'COMBINED'}\n"
+        "FIELDS TO CLASSIFY:\n"
+        f"{chr(10).join(lines) if lines else '(none)'}\n"
+        "}"
+    )
+
+    logger.info(
+        "[build_parameter_classifier_prompt] fields_sent_to_classifier=%s",
+        list(entity_context.keys()),
+    )
+    return {
+        "entity": "PARAMETER_CLASSIFIER",
+        "fields": fields,
+        "rendered_prompt": rendered,
+        "entity_context": entity_context,
+    }

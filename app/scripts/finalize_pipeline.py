@@ -149,6 +149,49 @@ def resolve_json_keys(mappings, refs):
     return mappings
 
 
+def resolve_entities_from_targets(mappings):
+    """Derive final entity from resolved internal target paths."""
+    updated = 0
+
+    for mapping in mappings:
+        excel_key = mapping.get("matched_excel_key", "")
+        json_key = (mapping.get("json_key") or "").lower()
+        current_entity = mapping.get("entity", "OTHER")
+        resolved_entity = current_entity
+
+        if "loancustomerrelations.loancustomerparameters" in json_key:
+            if "coapplicant." in json_key:
+                match = re.search(r"coapplicant\.(\d+)", json_key)
+                if match:
+                    resolved_entity = f"COAPPLICANT{int(match.group(1)) + 1}"
+                else:
+                    resolved_entity = "COAPPLICANT"
+            else:
+                resolved_entity = "APPLICANT"
+        elif "loanparameters" in json_key or excel_key.startswith("LOANPARAMETER"):
+            resolved_entity = "LOAN"
+        elif "coapplicant." in json_key:
+            match = re.search(r"coapplicant\.(\d+)", json_key)
+            if match:
+                resolved_entity = f"COAPPLICANT{int(match.group(1)) + 1}"
+            else:
+                resolved_entity = "COAPPLICANT"
+        elif "loanaccount.customer." in json_key or json_key.startswith("customer."):
+            resolved_entity = "APPLICANT"
+        elif any(token in json_key for token in ("loandocuments", "document", "imageid", "fileid")):
+            resolved_entity = "DOCUMENT"
+        elif excel_key.startswith("FEE"):
+            resolved_entity = "FEE"
+
+        if resolved_entity != current_entity:
+            mapping["entity"] = resolved_entity
+            updated += 1
+
+    if updated > 0:
+        print(f"  Resolved final entity from internal targets for {updated} mappings")
+    return mappings
+
+
 def validate_excel_keys(mappings, refs):
     """Replace invalid excel keys with a safe fallback for review."""
     by_excel_key = refs["field_dictionary"].get("by_excel_key", {})
@@ -283,9 +326,69 @@ LOAN_LEVEL_FIELDS = {
     "lsiamt", "reducedemi",
 }
 
+CUSTOMER_PARAM_CATEGORY_HINTS = (
+    "customer",
+    "applicant",
+    "coapplicant",
+    "co applicant",
+    "borrower",
+    "personal",
+    "employment",
+    "income",
+    "bank",
+    "bureau",
+    "kyc",
+    "address",
+    "reference",
+    "demographic",
+)
+
+LOAN_LEVEL_CATEGORY_HINTS = (
+    "loan",
+    "disbursement",
+    "repayment",
+    "emi",
+    "pricing",
+    "sanction",
+    "scheme",
+    "product",
+    "facility",
+)
+
+
+def _normalize_hint_text(value):
+    if not value:
+        return ""
+    return re.sub(r"[^a-z0-9]+", " ", value.strip().lower()).strip()
+
+
+def _is_customer_related_loan_parameter(mapping):
+    entity = (mapping.get("entity") or "").upper()
+    category = _normalize_hint_text(
+        mapping.get("column_category") or mapping.get("category") or ""
+    )
+    field = _normalize_hint_text(mapping.get("partner_field") or "")
+    compact_field = field.replace(" ", "")
+
+    if entity in ("APPLICANT", "CUSTOMER", "COAPPLICANT", "COAPPLICANT1", "COAPPLICANT2", "COAPPLICANT3", "COAPPLICANT4"):
+        return compact_field not in LOAN_LEVEL_FIELDS
+
+    if any(hint in category for hint in CUSTOMER_PARAM_CATEGORY_HINTS):
+        return compact_field not in LOAN_LEVEL_FIELDS
+
+    if (
+        entity == "LOAN"
+        and any(hint in category for hint in LOAN_LEVEL_CATEGORY_HINTS)
+        and any(hint in field for hint in CUSTOMER_PARAM_CATEGORY_HINTS)
+    ):
+        return True
+
+    return False
+
 
 def route_customer_params(mappings):
-    """Route parameter fallbacks to customer, fee, or loan buckets by entity."""
+    """Route parameter fallbacks to customer, fee, or loan buckets by entity/category/field."""
+    total_loan_parameter_candidates = 0
     rerouted_customer = 0
     rerouted_fee = 0
     kept_loan_level = 0
@@ -293,30 +396,37 @@ def route_customer_params(mappings):
     for mapping in mappings:
         excel_key = mapping.get("matched_excel_key", "")
         entity = (mapping.get("entity") or "").upper()
-        partner_field = (mapping.get("partner_field") or "").strip().lower()
 
-        if excel_key == "LOANPARAMETER" and entity in ("APPLICANT", "CUSTOMER", "COAPPLICANT"):
-            if partner_field in LOAN_LEVEL_FIELDS:
-                mapping["entity"] = "LOAN"
-                kept_loan_level += 1
-            else:
-                mapping["matched_excel_key"] = "LOANAPPLICANTPARAM"
-                rerouted_customer += 1
-        elif excel_key == "LOANPARAMETER" and entity == "FEE":
+        if excel_key == "LOANPARAMETER" and entity == "FEE":
+            total_loan_parameter_candidates += 1
             mapping["matched_excel_key"] = "FEE"
             rerouted_fee += 1
+        elif excel_key == "LOANPARAMETER":
+            total_loan_parameter_candidates += 1
+            if _is_customer_related_loan_parameter(mapping):
+                mapping["matched_excel_key"] = "LOANAPPLICANTPARAM"
+                rerouted_customer += 1
+            else:
+                kept_loan_level += 1
 
+    if total_loan_parameter_candidates > 0:
+        print(
+            "  LOANPARAMETER routing summary: "
+            f"total={total_loan_parameter_candidates}, "
+            f"converted_to_LOANAPPLICANTPARAM={rerouted_customer}, "
+            f"rerouted_to_FEE={rerouted_fee}, "
+            f"kept_as_LOANPARAMETER={kept_loan_level}"
+        )
     if rerouted_customer > 0:
         print(
-            f"  Rerouted {rerouted_customer} APPLICANT/COAPPLICANT-entity fields "
+            f"  Rerouted {rerouted_customer} customer-related LOANPARAMETER fields "
             "to LOANAPPLICANTPARAM"
         )
     if rerouted_fee > 0:
         print(f"  Rerouted {rerouted_fee} FEE-entity fields to FEE")
     if kept_loan_level > 0:
         print(
-            f"  Kept {kept_loan_level} loan-level fields as LOANPARAMETER "
-            "(IRR/LTV/Scheme etc.)"
+            f"  Kept {kept_loan_level} loan-level fields as LOANPARAMETER"
         )
     return mappings
 
@@ -544,6 +654,7 @@ def combine_and_process(det_results, llm_results, refs):
     all_mappings = route_customer_params(all_mappings)
     all_mappings = auto_number_special_fields(all_mappings)
     all_mappings = resolve_json_keys(all_mappings, refs)
+    all_mappings = resolve_entities_from_targets(all_mappings)
     all_mappings, missing_mandatory = validate_mandatory_fields(all_mappings)
     return all_mappings, missing_mandatory
 

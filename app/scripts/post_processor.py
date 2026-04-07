@@ -9,6 +9,7 @@ Handles:
 
 from dataclasses import dataclass
 from typing import Optional, Union
+import re
 
 
 @dataclass
@@ -40,6 +41,9 @@ class PostProcessor:
     }
 
     SEQUENTIAL_RENUMBER_FIELDS = {
+        "DOCUMENTNAME",
+        "DOCUMENTID",
+        "FEE",
         "LOANPARAMETER",
         "CUSTOMERPARAM",
         "CUSTOMERPARAMETER",
@@ -51,8 +55,46 @@ class PostProcessor:
         "LOANAPPLICANTPARAM": "LOANAPPLICANTPARAM",
     }
 
+    CUSTOMER_PARAM_CATEGORY_HINTS = (
+        "customer",
+        "applicant",
+        "coapplicant",
+        "co applicant",
+        "borrower",
+        "personal",
+        "employment",
+        "income",
+        "bank",
+        "bureau",
+        "kyc",
+        "address",
+        "reference",
+        "demographic",
+    )
+
+    LOAN_LEVEL_CATEGORY_HINTS = (
+        "loan",
+        "disbursement",
+        "repayment",
+        "emi",
+        "pricing",
+        "sanction",
+        "scheme",
+        "product",
+        "facility",
+    )
+
+    LOAN_LEVEL_FIELD_HINTS = {
+        "irr", "iir", "foir", "ltv", "loantovalue", "marginmoney",
+        "downpayment", "schemename", "schemeid", "schemecode",
+        "subproduct", "reducedemi", "tenure", "interest", "apr",
+        "loanamount", "sanctionamount", "approvedamount", "emiamount",
+        "disbursementamount", "repaymentfrequency",
+    }
+
     def __init__(self, field_dictionary: dict):
         self.field_dict = field_dictionary
+        self.by_excel_key = field_dictionary.get("by_excel_key", {}) if isinstance(field_dictionary, dict) else {}
         self.doc_counter = 0
         self.fee_counter = 0
         self.loan_param_counter = 0
@@ -62,9 +104,9 @@ class PostProcessor:
         """
         Process all results: auto-number special fields, resolve json_keys.
 
-        - LOANPARAMETER, CUSTOMERPARAM(ETER), and LOANAPPLICANTPARAM are always
+        - DOCUMENTNAME, DOCUMENTID, FEE, LOANPARAMETER, CUSTOMERPARAM(ETER),
+          and LOANAPPLICANTPARAM are always
           renumbered 1, 2, 3...
-        - DOCUMENTNAME, DOCUMENTID, FEE preserve pre-existing numbers if present.
         """
         normalized = []
         for item in results:
@@ -85,26 +127,39 @@ class PostProcessor:
             else:
                 normalized.append(item)
 
-        self._extract_max_counters_except_sequential(normalized)
-
         processed = []
+        converted_loan_params = 0
+        kept_loan_params = 0
         for result in normalized:
-            base_key = self._get_base_key(result.matched_excel_key)
+            original_base_key = self._get_base_key(result.matched_excel_key)
+            routed_excel_key = self._reroute_parameter_base_key(result)
+            base_key = self._get_base_key(routed_excel_key)
+
+            if original_base_key == "LOANPARAMETER":
+                if base_key == "LOANAPPLICANTPARAM":
+                    converted_loan_params += 1
+                else:
+                    kept_loan_params += 1
 
             if base_key in self.SPECIAL_FIELDS:
                 if base_key in self.SEQUENTIAL_RENUMBER_FIELDS:
                     numbered_key = self.assign_number(base_key)
-                elif result.matched_excel_key != base_key:
-                    numbered_key = result.matched_excel_key
+                elif routed_excel_key != base_key:
+                    numbered_key = routed_excel_key
                 else:
                     numbered_key = self.assign_number(base_key)
 
                 resolved_json_key = self.resolve_json_key(numbered_key)
+                resolved_entity = self._resolve_entity_from_target(
+                    numbered_key,
+                    resolved_json_key,
+                    result.entity,
+                )
                 processed.append(
                     {
                         "partner_field": result.partner_field,
                         "column_category": result.column_category,
-                        "entity": result.entity,
+                        "entity": resolved_entity,
                         "matched_excel_key": numbered_key,
                         "json_key": resolved_json_key,
                         "confidence": result.confidence,
@@ -115,11 +170,16 @@ class PostProcessor:
                 )
             else:
                 resolved_json_key = self.resolve_json_key(result.matched_excel_key)
+                resolved_entity = self._resolve_entity_from_target(
+                    result.matched_excel_key,
+                    resolved_json_key,
+                    result.entity,
+                )
                 processed.append(
                     {
                         "partner_field": result.partner_field,
                         "column_category": result.column_category,
-                        "entity": result.entity,
+                        "entity": resolved_entity,
                         "matched_excel_key": result.matched_excel_key,
                         "json_key": resolved_json_key,
                         "confidence": result.confidence,
@@ -129,11 +189,97 @@ class PostProcessor:
                     }
                 )
 
+        if converted_loan_params or kept_loan_params:
+            print(
+                "PostProcessor parameter routing: "
+                f"converted LOANPARAMETER -> LOANAPPLICANTPARAM = {converted_loan_params}, "
+                f"kept as LOANPARAMETER = {kept_loan_params}"
+            )
+
         return processed
+
+    def _normalize_text(self, value: Optional[str]) -> str:
+        if not value:
+            return ""
+        return re.sub(r"[^a-z0-9]+", " ", value.strip().lower()).strip()
+
+    def _is_customer_related_parameter(self, result: MatchResult) -> bool:
+        entity = (result.entity or "").upper()
+        category = self._normalize_text(result.column_category)
+        field = self._normalize_text(result.partner_field)
+        compact_field = field.replace(" ", "")
+
+        if entity in {"APPLICANT", "CUSTOMER", "COAPPLICANT", "COAPPLICANT1", "COAPPLICANT2", "COAPPLICANT3", "COAPPLICANT4"}:
+            if compact_field in self.LOAN_LEVEL_FIELD_HINTS:
+                return False
+            return True
+
+        if any(hint in category for hint in self.CUSTOMER_PARAM_CATEGORY_HINTS):
+            if compact_field in self.LOAN_LEVEL_FIELD_HINTS:
+                return False
+            return True
+
+        if (
+            entity == "LOAN"
+            and any(hint in category for hint in self.LOAN_LEVEL_CATEGORY_HINTS)
+            and any(hint in field for hint in self.CUSTOMER_PARAM_CATEGORY_HINTS)
+        ):
+            return True
+
+        return False
+
+    def _reroute_parameter_base_key(self, result: MatchResult) -> str:
+        base_key = self._get_base_key(result.matched_excel_key)
+        if base_key != "LOANPARAMETER":
+            return result.matched_excel_key
+        if result.match_type == "llm_parameter_bucket":
+            return result.matched_excel_key
+        if self._is_customer_related_parameter(result):
+            return "LOANAPPLICANTPARAM"
+        return result.matched_excel_key
 
     def resolve_json_key(self, excel_key: str) -> str:
         """Look up json_key from field_dictionary; return excel_key if not found."""
+        if self.by_excel_key:
+            return self.by_excel_key.get(excel_key, {}).get("json_key", excel_key)
         return self.field_dict.get(excel_key, excel_key)
+
+    def _resolve_entity_from_target(
+        self,
+        excel_key: str,
+        json_key: str,
+        fallback_entity: str,
+    ) -> str:
+        target = (json_key or "").lower()
+        excel_key_upper = (excel_key or "").upper()
+
+        if "loancustomerrelations.loancustomerparameters" in target:
+            if "coapplicant." in target:
+                match = re.search(r"coapplicant\.(\d+)", target)
+                if match:
+                    return f"COAPPLICANT{int(match.group(1)) + 1}"
+                return "COAPPLICANT"
+            return "APPLICANT"
+
+        if "loanparameters" in target or excel_key_upper.startswith("LOANPARAMETER"):
+            return "LOAN"
+
+        if "coapplicant." in target:
+            match = re.search(r"coapplicant\.(\d+)", target)
+            if match:
+                return f"COAPPLICANT{int(match.group(1)) + 1}"
+            return "COAPPLICANT"
+
+        if any(token in target for token in ("loanaccount.customer.", "customer.")):
+            return "APPLICANT"
+
+        if any(token in target for token in ("loandocuments", "document", "imageid", "fileid")):
+            return "DOCUMENT"
+
+        if excel_key_upper.startswith("FEE"):
+            return "FEE"
+
+        return fallback_entity
 
     def assign_number(self, base_key: str) -> str:
         """
@@ -176,29 +322,6 @@ class PostProcessor:
         while i >= 0 and numbered_key[i].isdigit():
             i -= 1
         return int(numbered_key[i + 1 :])
-
-    def _extract_max_counters_except_sequential(self, results: list[MatchResult]) -> None:
-        """
-        Pre-scan pre-numbered keys and set counters to their max,
-        so newly assigned numbers don't collide.
-
-        LOANPARAMETER, CUSTOMERPARAM(ETER), and LOANAPPLICANTPARAM restart from 1.
-        """
-        for result in results:
-            base_key = self._get_base_key(result.matched_excel_key)
-            if (
-                base_key in self.SPECIAL_FIELDS
-                and base_key not in self.SEQUENTIAL_RENUMBER_FIELDS
-                and result.matched_excel_key != base_key
-            ):
-                number = self._extract_number(result.matched_excel_key)
-                if base_key == "DOCUMENTNAME":
-                    self.doc_counter = max(self.doc_counter, number)
-                elif base_key == "DOCUMENTID":
-                    self.doc_counter = max(self.doc_counter, number)
-                elif base_key == "FEE":
-                    self.fee_counter = max(self.fee_counter, number)
-
 
 def create_output_dict(
     partner_field: str,

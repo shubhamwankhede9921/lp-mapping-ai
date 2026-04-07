@@ -76,7 +76,7 @@ def _strip_markdown(text: str) -> str:
     return stripped.strip()
 
 
-def _is_mapping_dict(d: dict) -> bool:
+def _is_mapping_dict(d: dict, min_pipe_count: int = 4) -> bool:
     if not d:
         return False
     non_env = [k for k in d if k not in ENVELOPE_KEYS]
@@ -85,35 +85,54 @@ def _is_mapping_dict(d: dict) -> bool:
     samples = [d[k] for k in non_env[:5] if isinstance(d[k], str)]
     if not samples:
         return False
-    return all(v.count("|") >= 4 for v in samples)
+    return all(v.count("|") >= min_pipe_count for v in samples)
 
 
-def _unwrap_envelope(data: Any, depth: int = 0) -> Optional[dict]:
+def _unwrap_envelope(
+    data: Any,
+    depth: int = 0,
+    min_pipe_count: int = 4,
+) -> Optional[dict]:
     if depth > 6:
         return None
     if isinstance(data, str):
         cleaned = _strip_markdown(data)
         try:
-            return _unwrap_envelope(json.loads(cleaned), depth + 1)
+            return _unwrap_envelope(
+                json.loads(cleaned),
+                depth + 1,
+                min_pipe_count=min_pipe_count,
+            )
         except (json.JSONDecodeError, ValueError):
             return None
     if isinstance(data, list):
-        return _unwrap_envelope(data[0], depth + 1) if data else None
+        return (
+            _unwrap_envelope(data[0], depth + 1, min_pipe_count=min_pipe_count)
+            if data else None
+        )
     if not isinstance(data, dict):
         return None
-    if _is_mapping_dict(data):
+    if _is_mapping_dict(data, min_pipe_count=min_pipe_count):
         logger.info(f"✓ Found mapping dict at depth={depth} with {len(data)} keys")
         return data
     if "mappings" in data and isinstance(data["mappings"], list):
         return data
     for key in ("result", "data", "output", "response", "content", "text"):
         if key in data:
-            found = _unwrap_envelope(data[key], depth + 1)
+            found = _unwrap_envelope(
+                data[key],
+                depth + 1,
+                min_pipe_count=min_pipe_count,
+            )
             if found is not None:
                 return found
     for key, value in data.items():
         if key not in ENVELOPE_KEYS:
-            found = _unwrap_envelope(value, depth + 1)
+            found = _unwrap_envelope(
+                value,
+                depth + 1,
+                min_pipe_count=min_pipe_count,
+            )
             if found is not None:
                 return found
     return None
@@ -183,13 +202,19 @@ class LLMService:
 
     def __init__(self, settings):
         self.url        = settings.llm_gateway_url
+        self.parameter_classifier_url = getattr(settings, "parameter_classifier_gateway_url", "")
         self.token      = settings.llm_gateway_token
         # Form-data field name — confirmed "task" from Postman, configurable via .env
         self.task_field = getattr(settings, "llm_task_field", "task")
 
     # ── Send ──────────────────────────────────────────────────────────────────
 
-    def _send(self, rendered_context: str) -> dict:
+    def _send(
+        self,
+        rendered_context: str,
+        url: Optional[str] = None,
+        min_pipe_count: int = 4,
+    ) -> dict:
         """
         POST rendered_context to the gateway as form-data:
           task = <rendered_context>
@@ -200,14 +225,15 @@ class LLMService:
         """
         headers = {"Authorization": f"Bearer {self.token}"}
         payload = {self.task_field: rendered_context}
+        target_url = url or self.url
 
         logger.info(
-            f"→ Gateway POST  field={self.task_field!r}  "
+            f"→ Gateway POST  url={target_url!r}  field={self.task_field!r}  "
             f"value_length={len(rendered_context)} chars"
         )
 
         try:
-            resp = requests.post(self.url, headers=headers, data=payload, timeout=600)
+            resp = requests.post(target_url, headers=headers, data=payload, timeout=600)
             resp.raise_for_status()
             body = resp.json()
         except requests.RequestException as e:
@@ -222,7 +248,7 @@ class LLMService:
             f"{list(body.keys()) if isinstance(body, dict) else type(body)}"
         )
 
-        mapping_dict = _unwrap_envelope(body)
+        mapping_dict = _unwrap_envelope(body, min_pipe_count=min_pipe_count)
         if mapping_dict is None:
             raise ValueError(
                 f"Could not find mapping dict in gateway response: {str(body)[:300]}"
@@ -280,6 +306,80 @@ class LLMService:
         logger.info(f"Parsed {len(results)} mappings")
         return results
 
+    def _parse_parameter_bucket_response(
+        self,
+        mapping_dict: dict,
+        entity_context: Dict[str, Dict],
+    ) -> List[Dict[str, Any]]:
+        allowed_normalized: Dict[str, str] = {
+            _normalize_key(k): k for k in entity_context
+        }
+        results: List[Dict[str, Any]] = []
+
+        logger.info(
+            "Parameter classifier whitelist: %s",
+            list(allowed_normalized.keys()),
+        )
+
+        for partner_field, value_str in mapping_dict.items():
+            if partner_field in ENVELOPE_KEYS:
+                continue
+            norm = _normalize_key(partner_field)
+            if entity_context and norm not in allowed_normalized:
+                logger.warning(
+                    "Parameter classifier hallucinated field '%s' — skipping",
+                    partner_field,
+                )
+                continue
+            original_key = allowed_normalized.get(norm, partner_field)
+            if not isinstance(value_str, str):
+                logger.warning(
+                    "Skipping classifier value for '%s' — value is %s",
+                    partner_field,
+                    type(value_str).__name__,
+                )
+                continue
+
+            parts = value_str.split("|", 2)
+            if len(parts) != 3:
+                logger.warning(
+                    "Skipping malformed classifier value for '%s': %r",
+                    partner_field,
+                    value_str,
+                )
+                continue
+
+            bucket, confidence_str, reasoning = parts
+            bucket = bucket.strip().upper()
+            if bucket not in {"LOANPARAMETER", "LOANAPPLICANTPARAM"}:
+                logger.warning(
+                    "Skipping classifier bucket '%s' for '%s'",
+                    bucket,
+                    partner_field,
+                )
+                continue
+            try:
+                confidence = float(confidence_str.strip())
+            except ValueError:
+                confidence = 0.0
+
+            ctx = entity_context.get(original_key, {})
+            results.append({
+                "partner_field": original_key,
+                "column_category": ctx.get("column_category"),
+                "entity": ctx.get("entity", "OTHER"),
+                "matched_excel_key": bucket,
+                "json_key": "",
+                "confidence": round(confidence, 4),
+                "match_type": "llm_parameter_bucket",
+                "reasoning": reasoning.strip(),
+                "needs_review": confidence < 0.80,
+                "winning_engine": "llm_parameter_bucket",
+            })
+
+        logger.info("Parsed %d parameter bucket classifications", len(results))
+        return results
+
     # ── Public entry point ────────────────────────────────────────────────────
 
     def map_fields(self, entity_prompts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -324,3 +424,26 @@ class LLMService:
                     })
 
         return all_mappings
+
+    def classify_parameter_buckets(self, prompt_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Single gateway call to classify rows into LOANPARAMETER vs LOANAPPLICANTPARAM.
+        """
+        if not self.parameter_classifier_url:
+            logger.info("Parameter classifier URL not configured — skipping classifier step")
+            return []
+
+        rendered = prompt_payload["rendered_prompt"]
+        entity_context = prompt_payload["entity_context"]
+        logger.info(
+            "[parameter-classifier] fields=%d context_keys=%s",
+            len(prompt_payload.get("fields", [])),
+            list(entity_context.keys()),
+        )
+
+        mapping_dict = self._send(
+            rendered,
+            url=self.parameter_classifier_url,
+            min_pipe_count=2,
+        )
+        return self._parse_parameter_bucket_response(mapping_dict, entity_context)

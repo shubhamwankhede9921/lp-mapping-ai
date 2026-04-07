@@ -1,6 +1,10 @@
 {
   "grouping_to_entity": {
     "LOAN_APPLICANT": "APPLICANT",
+    "APPLICANT": "APPLICANT",
+    "DOCUMENT": "DOCUMENT",
+    "LOAN": "LOAN",
+    "FEE": "FEE",
     "CUSTOMER_DETAILS_LEFT": "OTHER",
     "PRELIMINARY_LOAN_INFORMATION_LEFT": "LOAN",
     "PRELIMINARY_LOAN_INFORMATION_RIGHT": "LOAN",
@@ -92,8 +96,8 @@
     }
   ],
   "metadata": {
-    "total_groupings": 56,
-    "generated_at": "2026-03-27T05:07:55.727674Z",
+    "total_groupings": 60,
+    "generated_at": "2026-04-07T07:10:25.439634Z",
     "source": "generic_excel_upload_definition_fields (ui_grouping)"
   }
 }

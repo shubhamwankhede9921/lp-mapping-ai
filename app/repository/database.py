@@ -19,6 +19,7 @@ from typing import Generator, Optional
 
 import pandas as pd
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session, sessionmaker
 from dotenv import load_dotenv
 load_dotenv()  # Must be called before get_engine()
@@ -54,14 +55,22 @@ def get_engine():
             "Add them to your .env file."
         )
 
-    url = f"mysql+mysqlconnector://{user}:{password}@{host}:{port}/{database}"
+    # Keep the source DB driver aligned with requirements.txt and app.config.Settings.
+    url = URL.create(
+        "mysql+pymysql",
+        username=user,
+        password=password,
+        host=host,
+        port=int(port),
+        database=database,
+    )
     logger.info(f"Creating SQLAlchemy engine → {host}:{port}/{database} (user={user})")
 
     engine = create_engine(
         url,
         pool_pre_ping=True,       # auto-reconnect on stale connections
         pool_recycle=3600,        # recycle connections every hour
-        connect_args={"connection_timeout": 30},
+        connect_args={"connect_timeout": 30},
     )
     return engine
 

@@ -84,12 +84,14 @@ class FieldDictionaryBuilder:
             next((c for c in df.columns if "role" in c.lower()), None)
             or next((c for c in df.columns if "process" in c.lower()), None)
         )
+        col_process = next((c for c in df.columns if "process" in c.lower()), None)
         col_desc    = next((c for c in df.columns if "desc" in c.lower()), None)
         col_example = next((c for c in df.columns if "example" in c.lower()), None)
 
         logger.debug(f"field_dict cols — excel:{col_excel}  json:{col_json}  role:{col_role}")
 
         by_role: Dict[str, list] = defaultdict(list)
+        by_process: Dict[str, list] = defaultdict(list)
         by_excel_key: Dict[str, Any] = {}
         all_excel_keys: list = []
         seen: set = set()
@@ -98,6 +100,7 @@ class FieldDictionaryBuilder:
             excel_key = str(row[col_excel]).strip()                         if col_excel  else ""
             json_key  = str(row[col_json]).strip()                          if col_json   else ""
             role      = str(row[col_role]).strip().upper()                  if col_role   else "LOAN"
+            process   = str(row[col_process]).strip().upper()               if col_process and pd.notna(row.get(col_process)) else ""
             desc      = (
                 str(row[col_desc]).strip()
                 if col_desc and pd.notna(row.get(col_desc)) else None
@@ -110,7 +113,7 @@ class FieldDictionaryBuilder:
             if not excel_key or not json_key or excel_key == "nan" or json_key == "nan":
                 continue
 
-            key = (excel_key, json_key, role)
+            key = (excel_key, json_key, role, process)
             if key in seen:
                 continue
             seen.add(key)
@@ -120,24 +123,38 @@ class FieldDictionaryBuilder:
                  "description": desc, "example": example}
             )
 
+            if process:
+                by_process[process].append(
+                    {"excel_key": excel_key, "json_key": json_key,
+                     "role": role, "description": desc, "example": example}
+                )
+
             if excel_key not in by_excel_key:
                 by_excel_key[excel_key] = {
                     "json_key": json_key, "role": role,
                     "description": desc, "example": example,
+                    "process_names": [process] if process else [],
                 }
                 all_excel_keys.append(excel_key)
+            elif process:
+                process_names = by_excel_key[excel_key].setdefault("process_names", [])
+                if process not in process_names:
+                    process_names.append(process)
 
         by_role = {k: sorted(v, key=lambda x: x["excel_key"]) for k, v in sorted(by_role.items())}
+        by_process = {k: sorted(v, key=lambda x: x["excel_key"]) for k, v in sorted(by_process.items())}
         all_excel_keys.sort()
 
         logger.info(f"field_dictionary: {len(seen)} entries, {len(by_role)} roles")
         return {
             "by_role":        dict(by_role),
+            "by_process":     dict(by_process),
             "by_excel_key":   by_excel_key,
             "all_excel_keys": all_excel_keys,
             "metadata": {
                 "total":          len(seen),
                 "by_role_count":  {k: len(v) for k, v in by_role.items()},
+                "by_process_count": {k: len(v) for k, v in by_process.items()},
                 "generated_at":   datetime.utcnow().isoformat() + "Z",
                 "source":         "putm_upload_api_excel_json_mapping",
             },

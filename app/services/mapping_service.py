@@ -16,12 +16,90 @@ Prompt ownership:
 
 import json
 import logging
+import re
 import sys
 import importlib.util
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+CUSTOMER_PARAM_CATEGORY_HINTS = (
+    "customer",
+    "applicant",
+    "coapplicant",
+    "co applicant",
+    "borrower",
+    "personal",
+    "employment",
+    "income",
+    "bank",
+    "bureau",
+    "kyc",
+    "address",
+    "reference",
+    "demographic",
+)
+
+LOAN_LEVEL_CATEGORY_HINTS = (
+    "loan",
+    "disbursement",
+    "repayment",
+    "emi",
+    "pricing",
+    "sanction",
+    "scheme",
+    "product",
+    "facility",
+)
+
+LOAN_LEVEL_FIELD_HINTS = {
+    "irr", "iir", "foir", "ltv", "loantovalue", "marginmoney",
+    "downpayment", "schemename", "schemeid", "schemecode",
+    "subproduct", "reducedemi", "tenure", "interest", "apr",
+    "loanamount", "sanctionamount", "approvedamount", "emiamount",
+    "disbursementamount", "repaymentfrequency",
+}
+
+
+def _normalize_hint_text(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    return re.sub(r"[^a-z0-9]+", " ", value.strip().lower()).strip()
+
+
+def _fallback_parameter_bucket(item: Dict[str, Any]) -> str:
+    entity = (item.get("entity") or "").upper()
+    category = _normalize_hint_text(item.get("column_category") or item.get("category") or "")
+    field = _normalize_hint_text(item.get("partner_field") or item.get("field_name") or "")
+    compact_field = field.replace(" ", "")
+
+    if entity in {"APPLICANT", "CUSTOMER", "COAPPLICANT", "COAPPLICANT1", "COAPPLICANT2", "COAPPLICANT3", "COAPPLICANT4"}:
+        if compact_field not in LOAN_LEVEL_FIELD_HINTS:
+            return "LOANAPPLICANTPARAM"
+
+    if any(hint in category for hint in CUSTOMER_PARAM_CATEGORY_HINTS):
+        if compact_field not in LOAN_LEVEL_FIELD_HINTS:
+            return "LOANAPPLICANTPARAM"
+
+    if (
+        entity == "LOAN"
+        and any(hint in category for hint in LOAN_LEVEL_CATEGORY_HINTS)
+        and any(hint in field for hint in CUSTOMER_PARAM_CATEGORY_HINTS)
+    ):
+        return "LOANAPPLICANTPARAM"
+
+    return "LOANPARAMETER"
+
+
+def _is_parameter_bucket_candidate(item: Dict[str, Any]) -> bool:
+    excel_key = (item.get("matched_excel_key") or "").upper()
+    return (
+        not excel_key
+        or excel_key.startswith("LOANPARAMETER")
+        or item.get("match_type") == "unmatched_parameter_fallback"
+    )
 
 
 # ── sys.path helper ────────────────────────────────────────────────────────────
@@ -42,16 +120,12 @@ def _import_from_scripts(scripts_dir: str, module_name: str):
     if not module_path.exists():
         raise FileNotFoundError(f"Module file not found: {module_path}")
     _add_scripts_to_path(scripts_dir)
-    try:
-        return __import__(module_name)
-    except ImportError as e:
-        logger.debug(f"Regular import failed: {e}, trying spec import")
-        spec = importlib.util.spec_from_file_location(module_name, module_path)
-        if spec and spec.loader:
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            return module
-        raise ImportError(f"Cannot import {module_name} from {module_path}")
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec and spec.loader:
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    raise ImportError(f"Cannot import {module_name} from {module_path}")
 
 
 # ── Stats ──────────────────────────────────────────────────────────────────────
@@ -448,24 +522,141 @@ def run_hybrid_llm(
 
     # Still unmatched after all engines
     unmatched_count = 0
+    fallback_loan_parameter = 0
+    fallback_loan_applicant_parameter = 0
     for f in remaining:
         field_id = _field_id(f)
         if field_id and field_id in review_candidates_by_field:
             continue
+        fallback_excel_key = _fallback_parameter_bucket(f)
+        if fallback_excel_key == "LOANAPPLICANTPARAM":
+            fallback_loan_applicant_parameter += 1
+        else:
+            fallback_loan_parameter += 1
         results.append({
             **f,
-            "matched_excel_key": None,
+            "matched_excel_key": fallback_excel_key,
             "json_key":          "",
             "confidence":        0.0,
-            "match_type":        "unmatched",
-            "reasoning":         "No match found in any engine",
+            "match_type":        "unmatched_parameter_fallback",
+            "reasoning":         (
+                "No match found in deterministic, fuzzy, embedding, or LLM engines; "
+                f"defaulted to {fallback_excel_key} using entity/category/field context"
+            ),
             "needs_review":      True,
             "winning_engine":    "none",
         })
         unmatched_count += 1
     breakdown["unmatched"] = unmatched_count
+    if unmatched_count:
+        logger.info(
+            "Fallback-labeled unmatched fields: total=%d, LOANPARAMETER=%d, "
+            "LOANAPPLICANTPARAM=%d",
+            unmatched_count,
+            fallback_loan_parameter,
+            fallback_loan_applicant_parameter,
+        )
 
     return results, breakdown
+
+
+def refine_parameter_buckets(
+    all_mappings: List[Dict[str, Any]],
+    settings,
+    client_name: str = "",
+    process_name: str = "",
+) -> List[Dict[str, Any]]:
+    """
+    Extra classifier pass:
+    send parameter-like rows to a second LLM gateway that decides only
+    LOANPARAMETER vs LOANAPPLICANTPARAM.
+    """
+    if not getattr(settings, "parameter_classifier_gateway_url", ""):
+        logger.info("Parameter classifier gateway not configured — skipping refinement")
+        return all_mappings
+
+    from app.services.llm_service import LLMService
+    from app.services.prompt_builder import build_parameter_classifier_prompt
+
+    candidates = [
+        {
+            **item,
+            "partner_field": item.get("partner_field") or item.get("field_name"),
+        }
+        for item in all_mappings
+        if _is_parameter_bucket_candidate(item)
+        and (item.get("partner_field") or item.get("field_name"))
+    ]
+
+    if not candidates:
+        logger.info("No parameter-bucket candidates found for classifier step")
+        return all_mappings
+
+    logger.info(
+        "Preparing parameter bucket classifier input: total_candidates=%d",
+        len(candidates),
+    )
+
+    classifier = LLMService(settings)
+    prompt_payload = build_parameter_classifier_prompt(
+        candidates,
+        client_name=client_name,
+        process_name=process_name,
+    )
+
+    try:
+        classified = classifier.classify_parameter_buckets(prompt_payload)
+    except Exception as e:
+        logger.error("Parameter bucket classifier failed: %s", e, exc_info=True)
+        return all_mappings
+
+    if not classified:
+        logger.info("Parameter bucket classifier returned no usable results")
+        return all_mappings
+
+    by_field = {item["partner_field"]: item for item in classified}
+    updated = 0
+    to_loan_parameter = 0
+    to_loan_applicant = 0
+
+    for item in all_mappings:
+        field_name = item.get("partner_field") or item.get("field_name")
+        if not field_name or field_name not in by_field:
+            continue
+        classification = by_field[field_name]
+        new_bucket = classification["matched_excel_key"]
+        old_bucket = item.get("matched_excel_key")
+
+        item["matched_excel_key"] = new_bucket
+        item["json_key"] = ""
+        item["confidence"] = classification.get("confidence", item.get("confidence", 0.0))
+        item["needs_review"] = classification.get("needs_review", item.get("needs_review", True))
+        item["winning_engine"] = "llm_parameter_bucket"
+        item["match_type"] = "llm_parameter_bucket"
+        item["reasoning"] = (
+            f"Parameter bucket classifier chose {new_bucket}. "
+            f"{classification.get('reasoning', '').strip()}"
+        ).strip()
+        updated += 1
+        if new_bucket == "LOANAPPLICANTPARAM":
+            to_loan_applicant += 1
+        else:
+            to_loan_parameter += 1
+        logger.info(
+            "Parameter classifier: field=%s old_bucket=%s new_bucket=%s confidence=%.4f",
+            field_name,
+            old_bucket or "(none)",
+            new_bucket,
+            item["confidence"],
+        )
+
+    logger.info(
+        "Parameter bucket classifier summary: updated=%d LOANPARAMETER=%d LOANAPPLICANTPARAM=%d",
+        updated,
+        to_loan_parameter,
+        to_loan_applicant,
+    )
+    return all_mappings
 
 
 # ── Layer 3 — post-processing + Excel output ───────────────────────────────────
@@ -490,11 +681,6 @@ def post_process_and_output(
         from post_processor import PostProcessor
 
     refs = load_references(settings.references_dir)
-    flat_dict = {
-        ek: info.get("json_key", "")
-        for ek, info in refs["field_dictionary"].get("by_excel_key", {}).items()
-    }
-
     valid_mappings     = [m for m in all_mappings if m.get("matched_excel_key")]
     unmatched_mappings = [m for m in all_mappings if not m.get("matched_excel_key")]
 
@@ -505,7 +691,7 @@ def post_process_and_output(
             f"{[m.get('partner_field') for m in unmatched_mappings]}"
         )
 
-    processor = PostProcessor(flat_dict)
+    processor = PostProcessor(refs["field_dictionary"])
     processed_valid    = processor.process_results(valid_mappings)
     processed_mappings = processed_valid + unmatched_mappings
 

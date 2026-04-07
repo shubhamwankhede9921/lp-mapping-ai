@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     # LLM Gateway
     llm_gateway_url: str    = Field(...,                env="LLM_GATEWAY_URL")
     llm_gateway_token: str  = Field(...,                env="LLM_GATEWAY_TOKEN")
+    parameter_classifier_gateway_url: str = Field(
+        "",
+        env="PARAMETER_CLASSIFIER_GATEWAY_URL",
+    )
     llm_use_form_data: bool = Field(True,               env="LLM_USE_FORM_DATA")
     llm_task_field: str     = Field("task",             env="LLM_TASK_FIELD")
     llm_task_value: str     = Field("lp_field_mapping", env="LLM_TASK_VALUE")
