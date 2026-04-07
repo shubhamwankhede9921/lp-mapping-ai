@@ -95,7 +95,8 @@ class PostProcessor:
     def __init__(self, field_dictionary: dict):
         self.field_dict = field_dictionary
         self.by_excel_key = field_dictionary.get("by_excel_key", {}) if isinstance(field_dictionary, dict) else {}
-        self.doc_counter = 0
+        self.document_name_counter = 0
+        self.document_id_counter = 0
         self.fee_counter = 0
         self.loan_param_counter = 0
         self.customer_param_counter = 0
@@ -150,16 +151,11 @@ class PostProcessor:
                     numbered_key = self.assign_number(base_key)
 
                 resolved_json_key = self.resolve_json_key(numbered_key)
-                resolved_entity = self._resolve_entity_from_target(
-                    numbered_key,
-                    resolved_json_key,
-                    result.entity,
-                )
                 processed.append(
                     {
                         "partner_field": result.partner_field,
                         "column_category": result.column_category,
-                        "entity": resolved_entity,
+                        "entity": result.entity,
                         "matched_excel_key": numbered_key,
                         "json_key": resolved_json_key,
                         "confidence": result.confidence,
@@ -170,16 +166,11 @@ class PostProcessor:
                 )
             else:
                 resolved_json_key = self.resolve_json_key(result.matched_excel_key)
-                resolved_entity = self._resolve_entity_from_target(
-                    result.matched_excel_key,
-                    resolved_json_key,
-                    result.entity,
-                )
                 processed.append(
                     {
                         "partner_field": result.partner_field,
                         "column_category": result.column_category,
-                        "entity": resolved_entity,
+                        "entity": result.entity,
                         "matched_excel_key": result.matched_excel_key,
                         "json_key": resolved_json_key,
                         "confidence": result.confidence,
@@ -244,43 +235,6 @@ class PostProcessor:
             return self.by_excel_key.get(excel_key, {}).get("json_key", excel_key)
         return self.field_dict.get(excel_key, excel_key)
 
-    def _resolve_entity_from_target(
-        self,
-        excel_key: str,
-        json_key: str,
-        fallback_entity: str,
-    ) -> str:
-        target = (json_key or "").lower()
-        excel_key_upper = (excel_key or "").upper()
-
-        if "loancustomerrelations.loancustomerparameters" in target:
-            if "coapplicant." in target:
-                match = re.search(r"coapplicant\.(\d+)", target)
-                if match:
-                    return f"COAPPLICANT{int(match.group(1)) + 1}"
-                return "COAPPLICANT"
-            return "APPLICANT"
-
-        if "loanparameters" in target or excel_key_upper.startswith("LOANPARAMETER"):
-            return "LOAN"
-
-        if "coapplicant." in target:
-            match = re.search(r"coapplicant\.(\d+)", target)
-            if match:
-                return f"COAPPLICANT{int(match.group(1)) + 1}"
-            return "COAPPLICANT"
-
-        if any(token in target for token in ("loanaccount.customer.", "customer.")):
-            return "APPLICANT"
-
-        if any(token in target for token in ("loandocuments", "document", "imageid", "fileid")):
-            return "DOCUMENT"
-
-        if excel_key_upper.startswith("FEE"):
-            return "FEE"
-
-        return fallback_entity
-
     def assign_number(self, base_key: str) -> str:
         """
         Assign the next sequential number for a base key.
@@ -290,11 +244,11 @@ class PostProcessor:
         canonical = self.CANONICAL_BASE.get(base_key, base_key)
 
         if canonical == "DOCUMENTNAME":
-            self.doc_counter += 1
-            return f"DOCUMENTNAME{self.doc_counter}"
+            self.document_name_counter += 1
+            return f"DOCUMENTNAME{self.document_name_counter}"
         if canonical == "DOCUMENTID":
-            self.doc_counter += 1
-            return f"DOCUMENTID{self.doc_counter}"
+            self.document_id_counter += 1
+            return f"DOCUMENTID{self.document_id_counter}"
         if canonical == "FEE":
             self.fee_counter += 1
             return f"FEE{self.fee_counter}"
