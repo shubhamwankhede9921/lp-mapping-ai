@@ -261,6 +261,10 @@ async def hybrid_llm(
             client_name=client_name,
             process_name=process_name,
         )
+        all_mappings = svc.finalize_mappings(
+            all_mappings=all_mappings,
+            settings=settings,
+        )
         stats_raw    = svc.compute_stats(all_mappings)
 
         # ── persist to TARGET DB ───────────────────────────────────────────────
@@ -366,6 +370,11 @@ async def full_pipeline(
         #     master_id (Form)   → master_id
         #     entity             → ui_group            (LOAN / CUSTOMER …)
         #
+        all_mappings = svc.finalize_mappings(
+            all_mappings=all_mappings,
+            settings=settings,
+        )
+
         db_result = {"inserted": 0, "skipped": 0, "errors": 0}
         if save_to_db:
             try:

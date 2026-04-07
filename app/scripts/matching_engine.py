@@ -138,7 +138,7 @@ CATEGORY_STOPWORDS = {
     "lead", "details", "detail", "data", "info", "information", "section",
     "left", "right", "top", "bottom", "tab", "page", "field", "fields",
     "screen", "view", "module", "group", "grouping", "form",
-    "api", "mapping",
+    "api", "mapping", "profile",
 }
 
 ENTITY_CATEGORY_HINTS = {
@@ -171,7 +171,7 @@ def _tokenize_text(value: Optional[str]) -> List[str]:
 
 
 def _category_signal_tokens(column_category: Optional[str]) -> List[str]:
-    """Extract meaningful tokens from a category label for candidate scoring."""
+    """Extract meaningful tokens from a category label for alias scoring."""
     tokens = []
     for token in _tokenize_text(column_category):
         if len(token) <= 2:
@@ -182,99 +182,31 @@ def _category_signal_tokens(column_category: Optional[str]) -> List[str]:
     return list(dict.fromkeys(tokens))
 
 
-def _find_category_exact_override(
-    field_name: str,
+def _is_valid_category_label(
     column_category: Optional[str],
-    field_dictionary: Dict[str, Any],
-    entity: Optional[str] = None,
-    process_name: Optional[str] = None,
-) -> Optional[Tuple[str, str]]:
+    refs: Dict[str, Any],
+) -> bool:
     """
-    Find a better category-aligned match for generic exact fields.
-
-    Example:
-    - field_name: RegistrationNumber
-    - category: LeadVehicle
-    - generic exact hit: REGISTRATIONNUMBER
-    - category override: VEHICLEREGISTRATIONNUMBER
+    Treat category-guided alias overrides as trustworthy only when the incoming
+    category matches a known routing/grouping label from the reference set.
     """
-    category_tokens = _category_signal_tokens(column_category)
-    if not category_tokens:
-        return None
+    if not column_category:
+        return False
 
-    basic_normalized = normalize_basic(field_name)
-    if not basic_normalized:
-        return None
+    grouping_to_entity = refs.get("entity_routing", {}).get("grouping_to_entity", {})
+    if column_category in grouping_to_entity:
+        return True
 
-    by_excel_key = field_dictionary.get("by_excel_key", {})
-    scored_candidates: List[Tuple[int, str, str]] = []
+    normalized_category = normalize_category(column_category)
+    if not normalized_category:
+        return False
 
-    for excel_key, info in by_excel_key.items():
-        if not _is_excel_key_allowed_for_process(field_dictionary, excel_key, process_name):
-            continue
-        normalized_excel = normalize_basic(excel_key)
-        if normalized_excel == basic_normalized:
-            continue
-
-        if not (
-            normalized_excel.endswith(basic_normalized)
-            or basic_normalized in normalized_excel
-        ):
-            continue
-
-        json_key = info.get("json_key") or ""
-        description = info.get("description") or ""
-        candidate_tokens = set(_tokenize_text(" ".join([excel_key, json_key, description])))
-        entity_upper = (entity or "").upper()
-        entity_score = 0
-        candidate_text = " ".join([excel_key, json_key, description]).lower().replace(" ", "")
-
-        if entity_upper in {"APPLICANT", "CUSTOMER"}:
-            if "applicant" in candidate_text or "customer" in candidate_text:
-                entity_score = 2
-        elif entity_upper.startswith("COAPPLICANT"):
-            aliases = ["coapplicant"]
-            match = re.search(r"COAPPLICANT(\d+)", entity_upper)
-            if match:
-                idx = int(match.group(1))
-                aliases.append(f"coapplicant{idx}")
-                if idx > 0:
-                    aliases.append(f"coapplicant{idx - 1}")
-            if any(alias in candidate_text for alias in aliases):
-                entity_score = 2
-        elif entity_upper.startswith("GUARANTOR"):
-            if "guarantor" in candidate_text:
-                entity_score = 2
-
-        score = 0
-        if normalized_excel.endswith(basic_normalized):
-            score += 3
-        elif basic_normalized in normalized_excel:
-            score += 1
-
-        overlap = [token for token in category_tokens if token in candidate_tokens]
-        # If category is generic/non-informative, only allow a fallback override
-        # when the candidate clearly aligns with the detected entity and the
-        # field name is a suffix match (e.g. APPLICANTDATEOFBIRTH).
-        if not overlap:
-            if entity_score <= 0 or not normalized_excel.endswith(basic_normalized):
-                continue
-
-        score += len(overlap) * 2
-        score += entity_score
-
-        # Prefer candidates where longer/more specific category tokens align.
-        score += sum(1 for token in overlap if len(token) >= 6)
-
-        if score > 0:
-            scored_candidates.append((score, excel_key, json_key))
-
-    if not scored_candidates:
-        return None
-
-    scored_candidates.sort(key=lambda item: item[0], reverse=True)
-    _, excel_key, json_key = scored_candidates[0]
-    return excel_key, json_key
+    normalized_routing = {
+        normalize_category(key)
+        for key in grouping_to_entity.keys()
+        if key
+    }
+    return normalized_category in normalized_routing
 
 
 def _score_category_alignment(
@@ -307,6 +239,9 @@ def _find_category_alias_override(
     For alias matches, prefer another historically seen alias target when the
     category strongly favors it over the default target.
     """
+    if not _is_valid_category_label(column_category, refs):
+        return None
+
     category_tokens = _category_signal_tokens(column_category)
     if not category_tokens:
         return None
@@ -963,33 +898,6 @@ def match_field(
     # Build field dictionary index for fast lookup
     field_dict_index = _build_field_dict_index(field_dictionary)
     process_field_dict_index = _build_process_field_dict_index(field_dictionary, process_name)
-
-    # Category-aware override before generic exact matching. This helps when
-    # a partner field is generic by itself, but the category clearly narrows
-    # the domain (vehicle, coapplicant, fee, document, loan, etc.).
-    category_override = _find_category_exact_override(
-        field_name,
-        column_category,
-        field_dictionary,
-        entity,
-        process_name,
-    )
-    if category_override:
-        override_excel_key, override_json_key = category_override
-        if override_excel_key:
-            return MatchResult(
-                partner_field=field_name,
-                column_category=column_category,
-                matched_excel_key=override_excel_key,
-                matched_json_key=override_json_key,
-                confidence=0.98,
-                match_type=MatchType.EXACT.value,
-                reasoning=(
-                    f"Category-aware exact override: '{field_name}' in category '{column_category}' "
-                    f"maps to '{override_excel_key}'"
-                ),
-                entity=entity,
-            )
 
     # ====== 1. EXACT MATCH ======
     # Try basic normalization first (preserves entity prefixes for precise matching)

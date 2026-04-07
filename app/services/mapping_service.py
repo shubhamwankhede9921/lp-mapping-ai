@@ -660,6 +660,68 @@ def refine_parameter_buckets(
 
 
 # ── Layer 3 — post-processing + Excel output ───────────────────────────────────
+def _base_excel_key(excel_key: Optional[str]) -> str:
+    value = (excel_key or "").strip()
+    i = len(value) - 1
+    while i >= 0 and value[i].isdigit():
+        i -= 1
+    return value[: i + 1]
+
+
+def _apply_fee_entity_override(all_mappings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Final business rule:
+    if entity is FEE, force the mapping into the FEE bucket regardless of
+    any earlier alias/fuzzy/LLM match.
+    """
+    updated: List[Dict[str, Any]] = []
+    overridden = 0
+
+    for item in all_mappings:
+        row = dict(item)
+        entity = (row.get("entity") or "").upper()
+        if entity == "FEE" and _base_excel_key(row.get("matched_excel_key")) != "FEE":
+            old_key = row.get("matched_excel_key") or "(none)"
+            old_reasoning = (row.get("reasoning") or "").strip()
+            row["matched_excel_key"] = "FEE"
+            row["json_key"] = ""
+            row["match_type"] = "fee_entity_override"
+            row["winning_engine"] = "fee_entity_override"
+            row["reasoning"] = (
+                f"Fee entity override applied: forced mapping from {old_key} to FEE."
+                f"{' Previous reasoning: ' + old_reasoning if old_reasoning else ''}"
+            )
+            overridden += 1
+        updated.append(row)
+
+    if overridden:
+        logger.info("Applied final FEE entity override to %d mapping(s)", overridden)
+    return updated
+
+
+def finalize_mappings(
+    all_mappings: List[Dict[str, Any]],
+    settings,
+) -> List[Dict[str, Any]]:
+    """
+    Apply final overrides and resolve numbered keys/json paths once so every
+    downstream consumer sees the same final mapping output.
+    """
+    _add_scripts_to_path(settings.scripts_dir)
+
+    from matching_engine import load_references
+    from post_processor import PostProcessor
+
+    adjusted = _apply_fee_entity_override(all_mappings)
+    refs = load_references(settings.references_dir)
+    valid_mappings = [m for m in adjusted if m.get("matched_excel_key")]
+    unmatched_mappings = [m for m in adjusted if not m.get("matched_excel_key")]
+
+    processor = PostProcessor(refs["field_dictionary"])
+    processed_valid = processor.process_results(valid_mappings)
+    return processed_valid + unmatched_mappings
+
+
 def post_process_and_output(
     all_mappings: List[Dict],
     settings,
@@ -670,17 +732,12 @@ def post_process_and_output(
     _add_scripts_to_path(settings.scripts_dir)
 
     try:
-        from matching_engine import load_references
-        from post_processor import PostProcessor
         from generate_output import generate_mapping_excel
         use_original_excel = True
     except ImportError as e:
         logger.warning(f"Failed to import generate_mapping_excel: {e}. Falling back to pandas.")
         use_original_excel = False
-        from matching_engine import load_references
-        from post_processor import PostProcessor
 
-    refs = load_references(settings.references_dir)
     valid_mappings     = [m for m in all_mappings if m.get("matched_excel_key")]
     unmatched_mappings = [m for m in all_mappings if not m.get("matched_excel_key")]
 
@@ -691,12 +748,10 @@ def post_process_and_output(
             f"{[m.get('partner_field') for m in unmatched_mappings]}"
         )
 
-    processor = PostProcessor(refs["field_dictionary"])
-    processed_valid    = processor.process_results(valid_mappings)
-    processed_mappings = processed_valid + unmatched_mappings
+    processed_mappings = valid_mappings + unmatched_mappings
 
     logger.info(
-        f"Post-processing: {len(processed_valid)} valid, "
+        f"Output generation: {len(valid_mappings)} valid, "
         f"{len(unmatched_mappings)} unmatched, "
         f"{len(processed_mappings)} total"
     )
