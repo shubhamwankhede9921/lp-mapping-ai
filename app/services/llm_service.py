@@ -54,6 +54,8 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from app.services.prompt_builder import fill_prompt
+
 logger = logging.getLogger(__name__)
 
 # Keys that are NEVER partner field names — gateway envelope keys
@@ -77,15 +79,24 @@ def _strip_markdown(text: str) -> str:
 
 
 def _is_mapping_dict(d: dict, min_pipe_count: int = 4) -> bool:
+    return _extract_pipe_mapping_dict(d, min_pipe_count=min_pipe_count) is not None
+
+
+def _extract_pipe_mapping_dict(
+    d: dict,
+    min_pipe_count: int = 4,
+) -> Optional[dict]:
     if not d:
-        return False
-    non_env = [k for k in d if k not in ENVELOPE_KEYS]
-    if not non_env:
-        return False
-    samples = [d[k] for k in non_env[:5] if isinstance(d[k], str)]
-    if not samples:
-        return False
-    return all(v.count("|") >= min_pipe_count for v in samples)
+        return None
+
+    extracted = {
+        key: value
+        for key, value in d.items()
+        if key not in ENVELOPE_KEYS
+        and isinstance(value, str)
+        and value.count("|") >= min_pipe_count
+    }
+    return extracted or None
 
 
 def _unwrap_envelope(
@@ -112,9 +123,12 @@ def _unwrap_envelope(
         )
     if not isinstance(data, dict):
         return None
-    if _is_mapping_dict(data, min_pipe_count=min_pipe_count):
-        logger.info(f"✓ Found mapping dict at depth={depth} with {len(data)} keys")
-        return data
+    extracted = _extract_pipe_mapping_dict(data, min_pipe_count=min_pipe_count)
+    if extracted is not None:
+        logger.info(
+            f"✓ Found mapping dict at depth={depth} with {len(extracted)} keys"
+        )
+        return extracted
     if "mappings" in data and isinstance(data["mappings"], list):
         return data
     for key in ("result", "data", "output", "response", "content", "text"):
@@ -135,6 +149,25 @@ def _unwrap_envelope(
             )
             if found is not None:
                 return found
+    return None
+
+
+def _gateway_error_message(body: Any) -> Optional[str]:
+    if not isinstance(body, dict):
+        return None
+
+    for key in ("error", "message"):
+        value = body.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    result = body.get("result")
+    if isinstance(result, dict):
+        for key in ("error", "message"):
+            value = result.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
     return None
 
 
@@ -250,6 +283,9 @@ class LLMService:
 
         mapping_dict = _unwrap_envelope(body, min_pipe_count=min_pipe_count)
         if mapping_dict is None:
+            gateway_error = _gateway_error_message(body)
+            if gateway_error:
+                raise ValueError(f"Gateway returned error: {gateway_error}")
             raise ValueError(
                 f"Could not find mapping dict in gateway response: {str(body)[:300]}"
             )
@@ -409,6 +445,10 @@ class LLMService:
 
             except Exception as e:
                 logger.error(f"Failed for entity={entity}: {e}", exc_info=True)
+                retry_results = self._retry_fields_individually(ep, str(e))
+                if retry_results is not None:
+                    all_mappings.extend(retry_results)
+                    continue
                 for field_name, ctx in entity_context.items():
                     all_mappings.append({
                         "partner_field":     field_name,
@@ -424,6 +464,76 @@ class LLMService:
                     })
 
         return all_mappings
+
+    def _retry_fields_individually(
+        self,
+        entity_prompt: Dict[str, Any],
+        original_error: str,
+    ) -> Optional[List[Dict[str, Any]]]:
+        fields = entity_prompt.get("fields") or []
+        if len(fields) <= 1:
+            return None
+
+        field_dictionary = entity_prompt.get("field_dictionary")
+        alias_registry = entity_prompt.get("alias_registry")
+        if not isinstance(field_dictionary, dict) or not isinstance(alias_registry, dict):
+            return None
+
+        entity = entity_prompt["entity"]
+        logger.info(
+            "Retrying LLM batch field-by-field after entity=%s failure; fields=%d",
+            entity,
+            len(fields),
+        )
+
+        results: List[Dict[str, Any]] = []
+        for field in fields:
+            partner_field = field.get("field_name") or field.get("partner_field", "")
+            field_context = {
+                partner_field: {
+                    "entity": entity,
+                    "column_category": field.get("column_category"),
+                }
+            }
+            rendered = fill_prompt(
+                template=entity_prompt.get("prompt_template", ""),
+                entity=entity,
+                fields=[field],
+                field_dictionary=field_dictionary,
+                alias_registry=alias_registry,
+                client_name=entity_prompt.get("client_name", ""),
+                process_name=entity_prompt.get("process_name", ""),
+            )
+            try:
+                mapping_dict = self._send(rendered)
+                mappings = self._parse(mapping_dict, field_context)
+                if mappings:
+                    results.extend(mappings)
+                    continue
+                raise ValueError("No mappings returned for single-field retry")
+            except Exception as retry_error:
+                logger.error(
+                    "Single-field LLM retry failed for field=%s: %s",
+                    partner_field,
+                    retry_error,
+                )
+                results.append({
+                    "partner_field":     partner_field,
+                    "column_category":   field.get("column_category"),
+                    "entity":            field.get("entity", entity),
+                    "matched_excel_key": None,
+                    "json_key":          "",
+                    "confidence":        0.0,
+                    "match_type":        "llm_error",
+                    "reasoning":         (
+                        f"LLM batch failed: {original_error}; "
+                        f"single-field retry failed: {retry_error}"
+                    ),
+                    "needs_review":      True,
+                    "winning_engine":    "none",
+                })
+
+        return results
 
     def classify_parameter_buckets(self, prompt_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
