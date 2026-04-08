@@ -263,6 +263,11 @@ def build_entity_prompts(
             "fields":          fields,
             "rendered_prompt": rendered,
             "entity_context":  entity_context,
+            "prompt_template": prompt_template,
+            "client_name":     client_name,
+            "process_name":    process_name,
+            "field_dictionary": field_dictionary,
+            "alias_registry":   alias_registry,
         })
 
     return prompts
