@@ -34,11 +34,11 @@ class FieldDefinition:
         self.sample_value = sample_value
         self.description = description
         self.source_sheet = source_sheet
- 
+
     def to_dict(self):
         return self.__dict__
- 
- 
+
+
 # =========================
 # IDENTIFIER DETECTION
 # =========================
@@ -62,35 +62,53 @@ def _looks_like_identifier(val: str) -> bool:
         return True
  
     return False
- 
- 
+
+
+# =========================
+# DOTTED-PATH DETECTION
+# =========================
+def _is_dotted_path(val: str) -> bool:
+    """
+    Return True if the value looks like a dotted-path field name,
+    e.g. 'loanAccount.cbDateTime', 'a.b.c', 'foo.barBaz'.
+    A dotted path must have at least one dot with non-empty segments
+    on both sides, and no whitespace.
+    """
+    if ' ' in val:
+        return False
+    parts = val.split('.')
+    if len(parts) < 2:
+        return False
+    return all(len(p) > 0 for p in parts)
+
+
 # =========================
 # HEADER DETECTION
 # =========================
- 
+
 _EXACT_HEADERS = {
     "field names", "field name", "column name", "column names",
     "header", "headers", "s.no", "s.no.", "sr no", "sr. no", "sr.no",
     "input fields", "input field", "data fields", "data field",
     "description", "remarks", "notes", "mandatory", "required",
 }
- 
+
 _SINGLE_WORD_HEADERS = {
     "field", "fields", "column", "columns", "header",
     "input", "inputs", "description", "remarks",
 }
- 
+
 _LABEL_SUFFIXES = {
     'input', 'inputs', 'fields', 'field', 'field names', 'field name',
     'data', 'details', 'info', 'information', 'section',
 }
- 
+
 _GENERIC_WORDS = {
     'client', 'customer', 'applicant', 'loan',
     'coapplicant', 'details', 'info',
 }
- 
- 
+
+
 def _is_header_label(val: str) -> bool:
     if not val:
         return False
@@ -115,8 +133,8 @@ def _is_header_label(val: str) -> bool:
             return True
  
     return False
- 
- 
+
+
 def _is_purely_numeric(val: str) -> bool:
     """Return True if the value is a plain integer/float string (serial numbers, etc.)."""
     try:
@@ -124,12 +142,12 @@ def _is_purely_numeric(val: str) -> bool:
         return True
     except ValueError:
         return False
- 
- 
+
+
 # =========================
 # TABULAR HEADER DETECTION
 # =========================
- 
+
 FIELD_COL_HEADERS = {
     "loan api fields",
     "fields",
@@ -143,14 +161,14 @@ FIELD_COL_HEADERS = {
     "column names",
     "object name",
 }
- 
+
 SAMPLE_COL_HEADERS = {
     "sample values",
     "sample value",
     "example",
     "examples",
 }
- 
+
 CATEGORY_COL_HEADERS = {
     "field category",
     "category",
@@ -159,8 +177,8 @@ CATEGORY_COL_HEADERS = {
     "section",
     "module",
 }
- 
- 
+
+
 def find_header_row_and_cols(
     ws, max_scan_rows: int = 10
 ) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
@@ -185,8 +203,8 @@ def find_header_row_and_cols(
             return row_idx + 1, field_col, sample_col, category_col
  
     return None, None, None, None
- 
- 
+
+
 # =========================
 # TABULAR SHEET PARSER
 # =========================
@@ -196,7 +214,7 @@ def parse_tabular_sheet(
     """
     Try to parse *ws* as a tabular sheet.
     Returns a list of field dicts, or None if no recognised field header found.
- 
+
     Dedup rules:
     - If a category column exists: dedup key is (category, field_name)
       → same field name under different categories is kept (e.g. CITY under
@@ -228,6 +246,9 @@ def parse_tabular_sheet(
             continue
         if _is_purely_numeric(field_name):
             logger.debug(f"Tabular skip (numeric): {field_name!r}")
+            continue
+        if _is_dotted_path(field_name):
+            logger.debug(f"Tabular skip (dotted-path): {field_name!r}")
             continue
  
         # Resolve category value
@@ -270,8 +291,8 @@ def parse_tabular_sheet(
         )
  
     return fields
- 
- 
+
+
 # =========================
 # KV SHEET DETECTION
 # =========================
@@ -288,8 +309,8 @@ def is_key_value_sheet(ws) -> bool:
  
     identifier_ratio = sum(_looks_like_identifier(v) for v in values) / len(values)
     return identifier_ratio > 0.6
- 
- 
+
+
 # =========================
 # PARSE KV SHEET
 # =========================
@@ -298,7 +319,7 @@ def parse_key_value_sheet(
 ) -> List[dict]:
     """
     Parse a key-value sheet (column A = field names).
- 
+
     global_seen is shared across all sheets so that the same field name
     appearing in multiple KV sheets (or after a tabular sheet) is kept
     only once.
@@ -324,6 +345,9 @@ def parse_key_value_sheet(
         if _is_purely_numeric(field_name):
             logger.debug(f"KV skip (numeric): {field_name!r}")
             continue
+        if _is_dotted_path(field_name):
+            logger.debug(f"KV skip (dotted-path): {field_name!r}")
+            continue
  
         dedup_key = field_name.lower()
         if dedup_key in global_seen:
@@ -347,8 +371,8 @@ def parse_key_value_sheet(
         )
  
     return fields
- 
- 
+
+
 # =========================
 # EXCEL PARSER
 # Route: tabular first → KV fallback
@@ -381,8 +405,8 @@ def parse_excel_input(file_path: str) -> List[dict]:
  
     wb.close()
     return all_fields
- 
- 
+
+
 # =========================
 # JSON PARSER
 # =========================
@@ -410,8 +434,8 @@ def parse_json_input(file_path: str) -> List[dict]:
         ).to_dict()
         for k, v in flat.items()
     ]
- 
- 
+
+
 # =========================
 # MAIN ENTRY
 # =========================
@@ -428,8 +452,8 @@ def parse_input(file_path: str) -> List[dict]:
         return parse_json_input(str(file_path))
  
     raise ValueError("Unsupported file type")
- 
- 
+
+
 # =========================
 # CLI RUN
 # =========================
@@ -439,4 +463,3 @@ if __name__ == "__main__":
     file   = sys.argv[1]
     result = parse_input(file)
     print(json.dumps(result, indent=2))
- 
