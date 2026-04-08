@@ -4,8 +4,8 @@ Deterministic Field Matching Engine
 
 Core matching layer that maps partner fields to internal excel_keys without using an LLM.
 Loads reference files (field_dictionary, alias_registry, entity_routing) and evaluates
-fields in strict priority order: exact match → alias tiers → document detection →
-document ID detection → fee detection → unmatched.
+fields in strict priority order: exact match (raw) → exact match (prefix-stripped) →
+alias tiers → document detection → document ID detection → fee detection → unmatched.
 
 Usage:
     # As a module
@@ -32,7 +32,6 @@ from enum import Enum
 
 
 class MatchType(str, Enum):
-    """Enumeration of match types in priority order."""
     EXACT = "exact"
     ALIAS_TIER1 = "alias_tier1"
     ALIAS_TIER2 = "alias_tier2"
@@ -46,7 +45,6 @@ class MatchType(str, Enum):
 
 
 class Entity(str, Enum):
-    """Enumeration of entity types."""
     APPLICANT = "APPLICANT"
     COAPPLICANT = "COAPPLICANT"
     COAPPLICANT1 = "COAPPLICANT1"
@@ -61,23 +59,20 @@ class Entity(str, Enum):
 
 @dataclass
 class MatchResult:
-    """Result of a single field matching operation."""
     partner_field: str
     column_category: Optional[str]
     matched_excel_key: Optional[str]
     matched_json_key: Optional[str]
     confidence: float
-    match_type: str  # MatchType enum as string
+    match_type: str
     reasoning: str
-    entity: str  # Entity enum as string
+    entity: str
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for serialization."""
         return asdict(self)
 
 
 def normalize_process_name(process_name: Optional[str]) -> str:
-    """Normalize process names for filtering reference candidates."""
     if not process_name:
         return ""
     normalized = process_name.strip().upper()
@@ -96,11 +91,9 @@ def _is_excel_key_allowed_for_process(
     excel_key: str,
     process_name: Optional[str],
 ) -> bool:
-    """Check whether an excel key is valid for the requested process."""
     normalized_process = normalize_process_name(process_name)
     if not normalized_process:
         return True
-
     entry = field_dictionary.get("by_excel_key", {}).get(excel_key, {})
     process_names = entry.get("process_names") or []
     if not process_names:
@@ -108,7 +101,6 @@ def _is_excel_key_allowed_for_process(
     return normalized_process in {str(name).upper() for name in process_names}
 
 
-# Document detection keywords
 DOCUMENT_KEYWORDS = {
     "aadhar", "aadhaar", "kyc", "photo", "photograph", "image",
     "bank statement", "bankstatement", "cibil", "credit bureau", "bureau",
@@ -152,7 +144,6 @@ ENTITY_CATEGORY_HINTS = {
 
 
 def normalize_category(value: Optional[str]) -> str:
-    """Normalize category/grouping strings for robust entity routing."""
     if not value:
         return ""
     normalized = value.strip().lower()
@@ -162,7 +153,6 @@ def normalize_category(value: Optional[str]) -> str:
 
 
 def _tokenize_text(value: Optional[str]) -> List[str]:
-    """Tokenize free-form labels, including camelCase and separator-based text."""
     if not value:
         return []
     expanded = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", value)
@@ -171,7 +161,6 @@ def _tokenize_text(value: Optional[str]) -> List[str]:
 
 
 def _category_signal_tokens(column_category: Optional[str]) -> List[str]:
-    """Extract meaningful tokens from a category label for alias scoring."""
     tokens = []
     for token in _tokenize_text(column_category):
         if len(token) <= 2:
@@ -186,21 +175,14 @@ def _is_valid_category_label(
     column_category: Optional[str],
     refs: Dict[str, Any],
 ) -> bool:
-    """
-    Treat category-guided alias overrides as trustworthy only when the incoming
-    category matches a known routing/grouping label from the reference set.
-    """
     if not column_category:
         return False
-
     grouping_to_entity = refs.get("entity_routing", {}).get("grouping_to_entity", {})
     if column_category in grouping_to_entity:
         return True
-
     normalized_category = normalize_category(column_category)
     if not normalized_category:
         return False
-
     normalized_routing = {
         normalize_category(key)
         for key in grouping_to_entity.keys()
@@ -215,14 +197,11 @@ def _score_category_alignment(
     json_key: Optional[str] = "",
     description: Optional[str] = "",
 ) -> int:
-    """Score how well a candidate aligns with the input category."""
     category_tokens = _category_signal_tokens(column_category)
     if not category_tokens:
         return 0
-
     candidate_tokens = set(_tokenize_text(" ".join([excel_key, json_key or "", description or ""])))
     overlap = [token for token in category_tokens if token in candidate_tokens]
-
     score = len(overlap) * 2
     score += sum(1 for token in overlap if len(token) >= 6)
     return score
@@ -235,13 +214,8 @@ def _find_category_alias_override(
     default_excel_key: str,
     process_name: Optional[str] = None,
 ) -> Optional[Tuple[str, str]]:
-    """
-    For alias matches, prefer another historically seen alias target when the
-    category strongly favors it over the default target.
-    """
     if not _is_valid_category_label(column_category, refs):
         return None
-
     category_tokens = _category_signal_tokens(column_category)
     if not category_tokens:
         return None
@@ -266,7 +240,6 @@ def _find_category_alias_override(
         if target_excel_key:
             candidate_keys.add(target_excel_key)
 
-    # Also consider all targets from aliases that share the same normalized input.
     shared_alias_entry = alias_registry.get("forward", {}).get(normalized_field, {})
     if shared_alias_entry.get("target_excel_key"):
         candidate_keys.add(shared_alias_entry["target_excel_key"])
@@ -296,19 +269,11 @@ def _find_category_alias_override(
 def normalize_basic(field_name: str) -> str:
     """
     Basic normalization: lowercase + strip separators. Preserves entity prefixes.
-    Used for indexing field_dictionary keys where APPLICANT/COAPPLICANT distinction matters.
-
-    Args:
-        field_name: Raw field name
-
-    Returns:
-        Normalized field name with entity prefixes preserved
+    Used for exact matching where APPLICANT/COAPPLICANT distinction matters.
 
     Examples:
-        >>> normalize_basic("APPLICANT_DATE_OF_BIRTH")
-        "applicantdateofbirth"
-        >>> normalize_basic("COAPPLICANT1_GENDER")
-        "coapplicant1gender"
+        normalize_basic("APPLICANT_DATE_OF_BIRTH") → "applicantdateofbirth"
+        normalize_basic("bureauScore")             → "bureauscore"
     """
     if not field_name:
         return ""
@@ -320,37 +285,18 @@ def normalize_basic(field_name: str) -> str:
 def normalize_field(field_name: str) -> str:
     """
     Normalize a partner field name for alias matching.
-
-    Steps:
-    1. Convert to lowercase
-    2. Strip whitespace, underscores, dots, hyphens, apostrophes
-    3. Remove common entity prefixes (applicant_, coapplicant_, loan_, etc.)
-       This allows 'applicantGender' to match the same alias as 'gender'.
-
-    Args:
-        field_name: Raw field name from partner
-
-    Returns:
-        Normalized field name with entity prefixes stripped
+    Strips separators AND common entity prefixes so that
+    'applicantGender' matches the same alias as 'gender'.
 
     Examples:
-        >>> normalize_field("Date_of_Birth")
-        "dateofbirth"
-        >>> normalize_field("Applicant.Gender")
-        "gender"
-        >>> normalize_field("CoApplicant - Annual Income")
-        "annualincome"
+        normalize_field("Date_of_Birth")           → "dateofbirth"
+        normalize_field("Applicant.Gender")        → "gender"
+        normalize_field("CoApplicant - AnnualInc") → "annualinc"
     """
     if not field_name:
         return ""
-
-    # Lowercase
     normalized = field_name.lower()
-
-    # Remove common characters
     normalized = re.sub(r'[_\s\.\-\'\(\)]', '', normalized)
-
-    # Remove common entity prefixes
     prefixes = [
         r"^applicant",
         r"^coapplicant\d*",
@@ -360,18 +306,12 @@ def normalize_field(field_name: str) -> str:
         r"^fee",
         r"^partner",
     ]
-
     for prefix in prefixes:
         normalized = re.sub(prefix, '', normalized, flags=re.IGNORECASE)
-
     return normalized
 
 
 def _canonicalize_alias_key(value: Optional[str]) -> str:
-    """
-    Collapse small naming variations so process-aware alias fallback can find
-    equivalent keys like `aadharNumber` vs `aadharNo`.
-    """
     normalized = normalize_field(value or "")
     if not normalized:
         return ""
@@ -382,10 +322,6 @@ def _canonicalize_alias_key(value: Optional[str]) -> str:
 
 
 def _canonicalize_json_key(value: Optional[str]) -> str:
-    """
-    Normalize JSON paths so equivalent fields across process-specific object
-    roots can still be matched generically.
-    """
     if not value:
         return ""
     normalized = str(value).strip().lower()
@@ -423,10 +359,6 @@ def _find_process_equivalent_by_json(
     column_category: Optional[str],
     process_name: Optional[str],
 ) -> Optional[Tuple[str, str]]:
-    """
-    Find a process-valid equivalent by comparing canonicalized JSON meaning,
-    not just the excel key name.
-    """
     field_dictionary = refs.get("field_dictionary", {})
     canonical_json = _canonicalize_json_key(target_json_key)
     if not canonical_json:
@@ -460,11 +392,6 @@ def _find_process_aware_alias_fallback(
     refs: Dict[str, Any],
     process_name: Optional[str],
 ) -> Optional[Tuple[str, str]]:
-    """
-    If the primary alias target belongs to a different process, look for another
-    alias with the same canonical meaning whose target is allowed for the
-    requested process.
-    """
     normalized_process = normalize_process_name(process_name)
     if not normalized_process:
         return None
@@ -504,143 +431,81 @@ def detect_entity(
     entity_routing: Dict[str, str],
     process_name: Optional[str] = None
 ) -> str:
-    """
-    Detect entity from column_category, field name patterns, or process context.
-
-    Priority order:
-    1. Lookup column_category in entity_routing
-    2. Check field_name for entity patterns (applicant, coapplicant, loan, etc.)
-    3. Use process_name context if available
-    4. Default to OTHER
-
-    Args:
-        column_category: UI grouping/column category
-        field_name: Field name (raw)
-        entity_routing: Mapping from grouping_to_entity
-        process_name: Optional process or context name
-
-    Returns:
-        Entity as string (e.g., "APPLICANT", "COAPPLICANT", "LOAN")
-    """
-    # Route by column_category first
     if column_category:
         if column_category in entity_routing:
             return entity_routing[column_category]
-
         normalized_category = normalize_category(column_category)
         normalized_routing = {
             normalize_category(key): value for key, value in entity_routing.items()
         }
         if normalized_category in normalized_routing:
             return normalized_routing[normalized_category]
-
-        # Heuristic fallback for partner-provided human-readable categories.
         for entity_name, hints in ENTITY_CATEGORY_HINTS.items():
             if any(hint in normalized_category for hint in hints):
                 return entity_name
 
-    # Check field name patterns
     field_lower = field_name.lower()
 
     if any(x in field_lower for x in ["guarantor", "guaranter", "guaraontor"]):
-        # Try to detect guarantor number
         match = re.search(r'guarantor(\d)', field_lower)
         if match:
-            num = int(match.group(1))
-            return f"GUARANTOR{num}"
+            return f"GUARANTOR{int(match.group(1))}"
         return "GUARANTOR"
 
     if any(x in field_lower for x in ["coapplicant", "co_applicant", "co-applicant", "coapp"]):
-        # Try to detect coapplicant number
         match = re.search(r'(?:coapplicant|coapp)(\d)', field_lower)
         if match:
-            num = int(match.group(1))
-            return f"COAPPLICANT{num}"
+            return f"COAPPLICANT{int(match.group(1))}"
         return "COAPPLICANT"
 
     if any(x in field_lower for x in ["applicant", "customer", "borrower"]):
         return "APPLICANT"
-
-    if any(x in field_lower for x in ["loan"]):
+    if "loan" in field_lower:
         return "LOAN"
-
     if any(x in field_lower for x in ["document", "upload", "file", "attachment"]):
         return "DOCUMENT"
-
     if any(x in field_lower for x in ["fee", "charge", "commission"]):
         return "FEE"
 
-    # Fallback to process_name context
     if process_name:
         return entity_routing.get(process_name, "APPLICANT")
-
-    # Default to APPLICANT — most partner fields without explicit entity
-    # markers are applicant-level (customer data). This prevents entity-aware
-    # matching from deprioritizing applicant fields.
     return "APPLICANT"
 
 
 def load_references(references_dir: str) -> Dict[str, Any]:
-    """
-    Load all reference files from the references directory into memory.
-
-    Args:
-        references_dir: Path to references directory
-
-    Returns:
-        Dictionary with keys: field_dictionary, alias_registry, entity_routing
-
-    Raises:
-        FileNotFoundError: If any reference file is missing
-        json.JSONDecodeError: If reference file is invalid JSON
-    """
     ref_path = Path(references_dir)
-
     required_files = {
         "field_dictionary.json": "field_dictionary",
         "alias_registry.json": "alias_registry",
         "entity_routing.json": "entity_routing"
     }
-
     references = {}
-
     for filename, key in required_files.items():
         file_path = ref_path / filename
-
         if not file_path.exists():
             raise FileNotFoundError(
-                f"Reference file not found: {file_path}\n"
-                f"Expected in: {references_dir}"
+                f"Reference file not found: {file_path}\nExpected in: {references_dir}"
             )
-
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 references[key] = json.load(f)
         except json.JSONDecodeError as e:
             raise json.JSONDecodeError(
-                f"Invalid JSON in {filename}: {e.msg}",
-                e.doc,
-                e.pos
+                f"Invalid JSON in {filename}: {e.msg}", e.doc, e.pos
             )
-
     return references
 
 
-def _build_field_dict_index(field_dictionary: Dict[str, Any]) -> Dict[str, List[Tuple[str, str, str]]]:
+# ── Index builders ─────────────────────────────────────────────────────────────
+
+def _build_field_dict_index(
+    field_dictionary: Dict[str, Any]
+) -> Dict[str, List[Tuple[str, str, str]]]:
     """
-    Build a normalized index of field_dictionary for fast lookup.
-
-    Returns mapping: normalized_excel_key -> list of (excel_key, json_key, role)
-    Multiple entries per normalized key allows entity-aware selection.
-
-    Args:
-        field_dictionary: Loaded field_dictionary.json
-
-    Returns:
-        Index dictionary with lists of candidates per normalized key
+    Build lookup index keyed by normalize_basic(excel_key).
+    Sourced from by_role entries.
     """
     index: Dict[str, List[Tuple[str, str, str]]] = {}
-
     if "by_role" in field_dictionary:
         for role, entries in field_dictionary.get("by_role", {}).items():
             if isinstance(entries, list):
@@ -652,7 +517,28 @@ def _build_field_dict_index(field_dictionary: Dict[str, Any]) -> Dict[str, List[
                         if normalized not in index:
                             index[normalized] = []
                         index[normalized].append((excel_key, json_key, role))
+    return index
 
+
+def _build_by_excel_key_index(
+    field_dictionary: Dict[str, Any]
+) -> Dict[str, Tuple[str, str]]:
+    """
+    Build a lookup index directly from the authoritative by_excel_key dictionary.
+    Keyed by normalize_basic(excel_key) → (excel_key, json_key).
+
+    This index is the ground truth — only keys that are actual internal excel_keys
+    appear here. Used to VALIDATE that a candidate from the role-based index is a
+    genuine excel_key and not a data artifact.
+    """
+    index: Dict[str, Tuple[str, str]] = {}
+    for excel_key, entry in field_dictionary.get("by_excel_key", {}).items():
+        if not excel_key:
+            continue
+        normalized = normalize_basic(excel_key)
+        json_key = entry.get("json_key", "") or ""
+        if normalized not in index:
+            index[normalized] = (excel_key, json_key)
     return index
 
 
@@ -660,19 +546,11 @@ def _build_process_field_dict_index(
     field_dictionary: Dict[str, Any],
     process_name: Optional[str],
 ) -> Dict[str, List[Tuple[str, str, str]]]:
-    """
-    Build a process-scoped normalized index from field_dictionary.by_process.
-
-    This preserves the old matching flow but narrows exact-match candidates to
-    the requested process when process context is available.
-    """
     normalized_process = normalize_process_name(process_name)
     if not normalized_process:
         return {}
-
     index: Dict[str, List[Tuple[str, str, str]]] = {}
     process_entries = field_dictionary.get("by_process", {}).get(normalized_process, [])
-
     for entry in process_entries:
         excel_key = entry.get("excel_key", "")
         json_key = entry.get("json_key", "")
@@ -681,9 +559,49 @@ def _build_process_field_dict_index(
             continue
         normalized = normalize_basic(excel_key)
         index.setdefault(normalized, []).append((excel_key, json_key, role))
-
     return index
 
+
+def _build_process_by_excel_key_index(
+    field_dictionary: Dict[str, Any],
+    process_name: Optional[str],
+) -> Dict[str, Tuple[str, str]]:
+    """
+    Authoritative by_excel_key index scoped to a specific process.
+    Keyed by normalize_basic(excel_key) → (excel_key, json_key).
+    """
+    normalized_process = normalize_process_name(process_name)
+    index: Dict[str, Tuple[str, str]] = {}
+    for excel_key, entry in field_dictionary.get("by_excel_key", {}).items():
+        if not excel_key:
+            continue
+        # Filter by process if specified
+        if normalized_process:
+            process_names = entry.get("process_names") or []
+            if process_names and normalized_process not in {str(p).upper() for p in process_names}:
+                continue
+        normalized = normalize_basic(excel_key)
+        json_key = entry.get("json_key", "") or ""
+        if normalized not in index:
+            index[normalized] = (excel_key, json_key)
+    return index
+
+
+def _validate_exact_match_in_by_excel_key(
+    normalized_lookup: str,
+    by_excel_key_index: Dict[str, Tuple[str, str]],
+) -> Optional[Tuple[str, str]]:
+    """
+    Verify a normalized partner field name exists as an actual excel_key in by_excel_key.
+    Returns (excel_key, json_key) if found, None otherwise.
+
+    This prevents false exact matches where by_role entries contain partner-style
+    field names (e.g. 'annualIncome') that collide with unrelated internal keys.
+    """
+    return by_excel_key_index.get(normalized_lookup)
+
+
+# ── Candidate selection ─────────────────────────────────────────────────────────
 
 def _select_best_candidate(
     candidates: List[Tuple[str, str, str]],
@@ -692,23 +610,6 @@ def _select_best_candidate(
     process_name: Optional[str] = None,
     field_dictionary: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, str]:
-    """
-    Select the best candidate from multiple matches based on entity context.
-
-    Priority:
-    - If entity is APPLICANT/OTHER: prefer CUSTOMER role, then LOAN
-    - If entity is COAPPLICANT*: prefer COAPPLICANT role
-    - If entity is LOAN: prefer LOAN role
-    - If entity is GUARANTOR: prefer GUARANTOR role
-    - Default: first candidate
-
-    Args:
-        candidates: List of (excel_key, json_key, role) tuples
-        entity: Current entity context
-
-    Returns:
-        (excel_key, json_key) of best candidate
-    """
     if field_dictionary:
         filtered_candidates = [
             (ek, jk, role)
@@ -722,9 +623,6 @@ def _select_best_candidate(
         return candidates[0][0], candidates[0][1]
 
     normalized_category = normalize_category(column_category)
-
-    # Category-aware tiebreaker for domains where the same normalized field
-    # can exist in multiple roles, such as registration numbers.
     if normalized_category:
         category_tokens = set(_category_signal_tokens(column_category))
         if category_tokens:
@@ -733,9 +631,7 @@ def _select_best_candidate(
                 if category_tokens & candidate_tokens:
                     return ek, jk
 
-    # Define role preference by entity
     entity_upper = entity.upper() if entity else "OTHER"
-
     if entity_upper in ("APPLICANT", "OTHER"):
         role_priority = ["CUSTOMER", "LOAN", "COAPPLICANT", "GUARANTOR"]
     elif entity_upper.startswith("COAPPLICANT"):
@@ -747,32 +643,15 @@ def _select_best_candidate(
     else:
         role_priority = ["CUSTOMER", "LOAN", "COAPPLICANT", "GUARANTOR"]
 
-    # Sort candidates by role priority
     for preferred_role in role_priority:
         for ek, jk, role in candidates:
             if role == preferred_role:
                 return ek, jk
 
-    # Fallback to first candidate
     return candidates[0][0], candidates[0][1]
 
 
 def _get_alias_tier(frequency: int) -> str:
-    """
-    Determine confidence tier based on alias frequency.
-
-    Tiers:
-    - tier1: 30+ partners → confidence 0.98
-    - tier2: 10-29 partners → confidence 0.92
-    - tier3: 3-9 partners → confidence 0.85
-    - tier4: 1-2 partners → confidence 0.75
-
-    Args:
-        frequency: Number of partners using this alias
-
-    Returns:
-        Tier string (tier1, tier2, tier3, tier4)
-    """
     if frequency >= 30:
         return "tier1"
     elif frequency >= 10:
@@ -784,14 +663,12 @@ def _get_alias_tier(frequency: int) -> str:
 
 
 def _confidence_for_tier(tier: str) -> float:
-    """Get confidence score for a tier."""
-    tier_scores = {
+    return {
         "tier1": 0.98,
         "tier2": 0.92,
         "tier3": 0.85,
         "tier4": 0.75,
-    }
-    return tier_scores.get(tier, 0.50)
+    }.get(tier, 0.50)
 
 
 def _try_entity_substitution(
@@ -801,47 +678,20 @@ def _try_entity_substitution(
     field_dictionary: Dict[str, Any],
     process_name: Optional[str] = None,
 ) -> Tuple[Optional[str], float]:
-    """
-    Try to substitute entity prefixes when alias suggests different entity.
-
-    If alias maps to APPLICANTCUSTOMERGENDER but we're in COAPPLICANT context,
-    try COAPPLICANT1CUSTOMERGENDER, etc.
-
-    Args:
-        excel_key: Original excel_key from alias
-        current_entity: Current entity context
-        field_dictionary_index: Field dictionary index
-
-    Returns:
-        Tuple of (substituted_excel_key, confidence_adjustment) or (None, 0.0)
-    """
-    # Attempt substitution for coapplicant and guarantor scenarios
     if not (current_entity.startswith("COAPPLICANT") or current_entity.startswith("GUARANTOR")):
         return None, 0.0
-
-    # Check if original key has APPLICANT prefix
     if "APPLICANT" not in excel_key.upper():
         return None, 0.0
 
-    # Try to substitute APPLICANT with current entity
-    # For COAPPLICANT: APPLICANTGENDER → COAPPLICANT1GENDER
-    # For GUARANTOR: APPLICANTGENDER → GUARANTOR1GENDER
     target_prefix = current_entity
     if current_entity == "COAPPLICANT":
         target_prefix = "COAPPLICANT1"
     elif current_entity == "GUARANTOR":
         target_prefix = "GUARANTOR1"
 
-    substituted = re.sub(
-        r"(?i)applicant(?!\d)",
-        target_prefix,
-        excel_key
-    )
-
-    # Check if substituted key exists in field dictionary
+    substituted = re.sub(r"(?i)applicant(?!\d)", target_prefix, excel_key)
     normalized_sub = normalize_basic(substituted)
     if normalized_sub in field_dictionary_index:
-        # Use the best candidate from substituted results
         best_ek, _ = _select_best_candidate(
             field_dictionary_index[normalized_sub],
             current_entity,
@@ -849,11 +699,11 @@ def _try_entity_substitution(
             process_name,
             field_dictionary,
         )
-        # Reduce confidence for entity substitution
         return best_ek, -0.10
-
     return None, 0.0
 
+
+# ── Core match function ─────────────────────────────────────────────────────────
 
 def match_field(
     field_name: str,
@@ -866,24 +716,19 @@ def match_field(
     Match a single partner field to an internal excel_key.
 
     Evaluation order:
-    1. EXACT MATCH: normalized field matches normalized excel_key
-    2. ALIAS MATCH (by tier): lookup in alias_registry.forward
-    3. DOCUMENT NAME DETECTION: field contains document keywords
-    4. DOCUMENT ID DETECTION: field contains document + locator keywords
-    5. FEE DETECTION: field contains fee/charge keywords
-    6. UNMATCHED: return for LLM layer to handle
-
-    Args:
-        field_name: Partner field name
-        column_category: UI grouping/column category
-        entity: Entity type (APPLICANT, COAPPLICANT, LOAN, etc.)
-        refs: References dictionary from load_references()
-        process_name: Optional process context used to filter candidate excel keys
-
-    Returns:
-        MatchResult with confidence, match_type, and reasoning
+    1a. EXACT MATCH (raw, field_dictionary-first)
+        — normalize_basic only, no prefix stripping
+        — validates candidate exists in by_excel_key before accepting
+    1b. EXACT MATCH (prefix-stripped, field_dictionary-first)
+        — normalize_field strips entity prefixes
+        — validates candidate exists in by_excel_key before accepting
+    2.  ALIAS MATCH (tier 1–4)       — lookup in alias_registry.forward
+    3.  DOCUMENT NAME DETECTION
+    4.  DOCUMENT ID DETECTION
+    5.  FEE DETECTION
+    6.  UNMATCHED                    — hand off to LLM layer
     """
-    # Default entity detection
+    # ── Entity detection ──────────────────────────────────────────────────────
     if not entity:
         entity = detect_entity(
             column_category,
@@ -891,26 +736,32 @@ def match_field(
             refs["entity_routing"].get("grouping_to_entity", {})
         )
 
-    normalized_field = normalize_field(field_name)
     field_dictionary = refs.get("field_dictionary", {})
     alias_registry = refs.get("alias_registry", {})
 
-    # Build field dictionary index for fast lookup
+    # Build role-based index (all processes)
     field_dict_index = _build_field_dict_index(field_dictionary)
+
+    # Build authoritative by_excel_key indexes for validation
+    # These are the ground truth — only genuine internal excel_keys appear here
+    by_excel_key_index = _build_by_excel_key_index(field_dictionary)
+    by_excel_key_process_index = _build_process_by_excel_key_index(field_dictionary, process_name)
+
+    # Build process-scoped role index
     process_field_dict_index = _build_process_field_dict_index(field_dictionary, process_name)
 
-    # ====== 1. EXACT MATCH ======
-    # Try basic normalization first (preserves entity prefixes for precise matching)
+    # ====== 1a. EXACT MATCH — raw (normalize_basic, prefixes preserved) ======
+    #
+    # Priority: check by_excel_key (authoritative) FIRST, then fall back to the
+    # role-based index. This prevents false matches where by_role contains
+    # partner-style field names that collide with unrelated internal keys.
+    #
     basic_normalized = normalize_basic(field_name)
-    if basic_normalized in process_field_dict_index:
-        candidates = process_field_dict_index[basic_normalized]
-        excel_key, json_key = _select_best_candidate(
-            candidates,
-            entity,
-            column_category,
-            process_name,
-            field_dictionary,
-        )
+
+    # 1a-i: Check authoritative by_excel_key (process-scoped first)
+    process_exact = _validate_exact_match_in_by_excel_key(basic_normalized, by_excel_key_process_index)
+    if process_exact:
+        excel_key, json_key = process_exact
         return MatchResult(
             partner_field=field_name,
             column_category=column_category,
@@ -919,43 +770,189 @@ def match_field(
             confidence=1.0,
             match_type=MatchType.EXACT.value,
             reasoning=(
-                f"Exact match within process '{normalize_process_name(process_name)}': "
-                f"normalized '{field_name}' matches '{excel_key}'"
+                f"Exact match (raw, field_dictionary-first) within process "
+                f"'{normalize_process_name(process_name)}': "
+                f"normalized '{field_name}' is a known excel_key '{excel_key}'"
             ),
-            entity=entity
+            entity=entity,
         )
+
+    # 1a-ii: Check authoritative by_excel_key (all processes)
+    # Only accept if the matched excel_key is actually allowed for this process.
+    # Do NOT call _find_process_equivalent_by_json here — swapping to another key
+    # that shares the same json_key produces wrong results (e.g. annualIncome →
+    # COMMERCIALCIBIL). If the key isn't valid for this process, fall through to
+    # alias matching which has proper frequency-ranked candidates.
+    global_exact = _validate_exact_match_in_by_excel_key(basic_normalized, by_excel_key_index)
+    if global_exact:
+        excel_key, json_key = global_exact
+        if process_name and not _is_excel_key_allowed_for_process(field_dictionary, excel_key, process_name):
+            # Key exists globally but not for this process — do NOT swap, fall through
+            pass
+        else:
+            return MatchResult(
+                partner_field=field_name,
+                column_category=column_category,
+                matched_excel_key=excel_key,
+                matched_json_key=json_key,
+                confidence=1.0,
+                match_type=MatchType.EXACT.value,
+                reasoning=(
+                    f"Exact match (raw, field_dictionary-first): "
+                    f"normalized '{field_name}' is a known excel_key '{excel_key}'"
+                ),
+                entity=entity,
+            )
+
+    # 1a-iii: Fall back to role-based index (legacy path) — only accept if
+    # the candidate is also present in by_excel_key to avoid false positives
+    if basic_normalized in process_field_dict_index:
+        candidates = process_field_dict_index[basic_normalized]
+        excel_key, json_key = _select_best_candidate(
+            candidates, entity, column_category, process_name, field_dictionary,
+        )
+        # Validate: only accept if this excel_key is a known key in by_excel_key
+        if normalize_basic(excel_key) in by_excel_key_index:
+            return MatchResult(
+                partner_field=field_name,
+                column_category=column_category,
+                matched_excel_key=excel_key,
+                matched_json_key=json_key,
+                confidence=1.0,
+                match_type=MatchType.EXACT.value,
+                reasoning=(
+                    f"Exact match (raw) within process '{normalize_process_name(process_name)}': "
+                    f"normalized '{field_name}' matches '{excel_key}'"
+                ),
+                entity=entity,
+            )
 
     if basic_normalized in field_dict_index:
         candidates = field_dict_index[basic_normalized]
         excel_key, json_key = _select_best_candidate(
-            candidates,
-            entity,
-            column_category,
-            process_name,
-            field_dictionary,
+            candidates, entity, column_category, process_name, field_dictionary,
         )
-        if process_name and not _is_excel_key_allowed_for_process(field_dictionary, excel_key, process_name):
-            equivalent = _find_process_equivalent_by_json(
-                refs,
-                json_key,
-                entity,
-                column_category,
-                process_name,
-            )
-            if equivalent:
-                excel_key, json_key = equivalent
-        return MatchResult(
-            partner_field=field_name,
-            column_category=column_category,
-            matched_excel_key=excel_key,
-            matched_json_key=json_key,
-            confidence=1.0,
-            match_type=MatchType.EXACT.value,
-            reasoning=f"Exact match: normalized '{field_name}' matches '{excel_key}'",
-            entity=entity
-        )
+        # Validate: only accept if this excel_key is genuinely in by_excel_key
+        # AND is allowed for this process. Never swap to a different key here —
+        # fall through to alias matching if the process doesn't allow this key.
+        if normalize_basic(excel_key) in by_excel_key_index:
+            if process_name and not _is_excel_key_allowed_for_process(field_dictionary, excel_key, process_name):
+                pass  # fall through to alias matching
+            else:
+                return MatchResult(
+                    partner_field=field_name,
+                    column_category=column_category,
+                    matched_excel_key=excel_key,
+                    matched_json_key=json_key,
+                    confidence=1.0,
+                    match_type=MatchType.EXACT.value,
+                    reasoning=f"Exact match (raw): normalized '{field_name}' matches '{excel_key}'",
+                    entity=entity,
+                )
 
-    # ====== 2. ALIAS MATCH (by tier) ======
+    # ====== 1b. EXACT MATCH — prefix-stripped (normalize_field) ======
+    #
+    # Same field_dictionary-first priority: check by_excel_key before role index.
+    #
+    normalized_field = normalize_field(field_name)
+
+    if normalized_field and normalized_field != basic_normalized:
+
+        # 1b-i: Check authoritative by_excel_key (process-scoped first)
+        process_exact_stripped = _validate_exact_match_in_by_excel_key(
+            normalized_field, by_excel_key_process_index
+        )
+        if process_exact_stripped:
+            excel_key, json_key = process_exact_stripped
+            return MatchResult(
+                partner_field=field_name,
+                column_category=column_category,
+                matched_excel_key=excel_key,
+                matched_json_key=json_key,
+                confidence=1.0,
+                match_type=MatchType.EXACT.value,
+                reasoning=(
+                    f"Exact match (prefix-stripped, field_dictionary-first) within process "
+                    f"'{normalize_process_name(process_name)}': "
+                    f"'{field_name}' → '{normalized_field}' is a known excel_key '{excel_key}'"
+                ),
+                entity=entity,
+            )
+
+        # 1b-ii: Check authoritative by_excel_key (all processes)
+        # Same rule: if the key isn't valid for this process, fall through to
+        # alias matching — do NOT swap via _find_process_equivalent_by_json.
+        global_exact_stripped = _validate_exact_match_in_by_excel_key(
+            normalized_field, by_excel_key_index
+        )
+        if global_exact_stripped:
+            excel_key, json_key = global_exact_stripped
+            if process_name and not _is_excel_key_allowed_for_process(field_dictionary, excel_key, process_name):
+                pass  # fall through to alias matching
+            else:
+                return MatchResult(
+                    partner_field=field_name,
+                    column_category=column_category,
+                    matched_excel_key=excel_key,
+                    matched_json_key=json_key,
+                    confidence=1.0,
+                    match_type=MatchType.EXACT.value,
+                    reasoning=(
+                        f"Exact match (prefix-stripped, field_dictionary-first): "
+                        f"'{field_name}' → '{normalized_field}' is a known excel_key '{excel_key}'"
+                    ),
+                    entity=entity,
+                )
+
+        # 1b-iii: Fall back to role-based index with validation
+        if normalized_field in process_field_dict_index:
+            candidates = process_field_dict_index[normalized_field]
+            excel_key, json_key = _select_best_candidate(
+                candidates, entity, column_category, process_name, field_dictionary,
+            )
+            if normalize_basic(excel_key) in by_excel_key_index:
+                return MatchResult(
+                    partner_field=field_name,
+                    column_category=column_category,
+                    matched_excel_key=excel_key,
+                    matched_json_key=json_key,
+                    confidence=1.0,
+                    match_type=MatchType.EXACT.value,
+                    reasoning=(
+                        f"Exact match (prefix-stripped) within process "
+                        f"'{normalize_process_name(process_name)}': "
+                        f"'{field_name}' → '{normalized_field}' matches '{excel_key}'"
+                    ),
+                    entity=entity,
+                )
+
+        if normalized_field in field_dict_index:
+            candidates = field_dict_index[normalized_field]
+            excel_key, json_key = _select_best_candidate(
+                candidates, entity, column_category, process_name, field_dictionary,
+            )
+            # Never swap to a process-equivalent here — fall through to alias if not allowed
+            if normalize_basic(excel_key) in by_excel_key_index:
+                if process_name and not _is_excel_key_allowed_for_process(field_dictionary, excel_key, process_name):
+                    pass  # fall through to alias matching
+                else:
+                    return MatchResult(
+                        partner_field=field_name,
+                        column_category=column_category,
+                        matched_excel_key=excel_key,
+                        matched_json_key=json_key,
+                        confidence=1.0,
+                        match_type=MatchType.EXACT.value,
+                        reasoning=(
+                            f"Exact match (prefix-stripped): "
+                            f"'{field_name}' → '{normalized_field}' matches '{excel_key}'"
+                        ),
+                        entity=entity,
+                    )
+    else:
+        normalized_field = normalize_field(field_name)
+
+    # ====== 2. ALIAS MATCH (tiers 1–4) ======
     forward_aliases = alias_registry.get("forward", {})
 
     if normalized_field in forward_aliases:
@@ -964,31 +961,20 @@ def match_field(
         target_json_key = alias_entry.get("target_json_key", "")
         frequency = alias_entry.get("frequency", 0)
 
-        # Determine tier and confidence
         tier = _get_alias_tier(frequency)
         match_type = f"alias_{tier}"
         base_confidence = _confidence_for_tier(tier)
 
-        # Try entity substitution if applicable
         substituted_key, conf_adjustment = _try_entity_substitution(
-            target_excel_key,
-            entity,
-            field_dict_index,
-            field_dictionary,
-            process_name,
+            target_excel_key, entity, field_dict_index, field_dictionary, process_name,
         )
 
         final_excel_key = substituted_key or target_excel_key
         final_json_key = target_json_key
         final_confidence = base_confidence + conf_adjustment
 
-        # Category-aware alias override for generic fields in informative categories.
         alias_override = _find_category_alias_override(
-            normalized_field,
-            column_category,
-            refs,
-            final_excel_key,
-            process_name,
+            normalized_field, column_category, refs, final_excel_key, process_name,
         )
         if alias_override:
             override_excel_key, override_json_key = alias_override
@@ -999,11 +985,7 @@ def match_field(
 
         elif not _is_excel_key_allowed_for_process(field_dictionary, final_excel_key, process_name):
             equivalent = _find_process_equivalent_by_json(
-                refs,
-                final_json_key,
-                entity,
-                column_category,
-                process_name,
+                refs, final_json_key, entity, column_category, process_name,
             )
             if equivalent:
                 final_excel_key, final_json_key = equivalent
@@ -1017,16 +999,14 @@ def match_field(
                     match_type=match_type,
                     reasoning=(
                         f"Alias match ({tier}) via process-equivalent JSON mapping: "
-                        f"'{field_name}' resolved to '{final_excel_key}' for process "
-                        f"'{process_name}'"
+                        f"'{field_name}' resolved to '{final_excel_key}' "
+                        f"for process '{process_name}'"
                     ),
                     entity=entity,
                 )
 
             fallback = _find_process_aware_alias_fallback(
-                normalized_field,
-                refs,
-                process_name,
+                normalized_field, refs, process_name,
             )
             if fallback:
                 final_excel_key, final_json_key = fallback
@@ -1046,8 +1026,6 @@ def match_field(
                     entity=entity,
                 )
 
-            # Skip alias targets that belong to a different process; let later
-            # pattern rules or the LLM handle the field instead of cross-mapping.
             return MatchResult(
                 partner_field=field_name,
                 column_category=column_category,
@@ -1056,8 +1034,8 @@ def match_field(
                 confidence=0.0,
                 match_type=MatchType.UNMATCHED.value,
                 reasoning=(
-                    f"Alias target '{final_excel_key}' is not allowed for process "
-                    f"'{process_name}'"
+                    f"Alias target '{final_excel_key}' is not allowed "
+                    f"for process '{process_name}'"
                 ),
                 entity=entity,
             )
@@ -1079,16 +1057,12 @@ def match_field(
                     else ""
                 )
             ),
-            entity=entity
+            entity=entity,
         )
 
     # ====== 3. DOCUMENT NAME DETECTION ======
     field_lower = field_name.lower()
-    # Remove ambiguous single-word matches: require the doc keyword to be a significant
-    # part of the field name, not just incidental (e.g., "KYC" in "APPLICANT'S NAME (SAME AS KYC)")
     doc_keywords_found = [kw for kw in DOCUMENT_KEYWORDS if kw in field_lower]
-    # A field is a document reference if doc keywords make up significant part of the name
-    # or the field clearly references a file/link/upload
     has_strong_doc_signal = any(
         kw in field_lower for kw in [
             "document", "upload", "attachment", "file", "certificate",
@@ -1100,7 +1074,6 @@ def match_field(
     looks_like_filename = any(
         x in field_lower for x in [".pdf", ".jpg", ".png", "file", "upload", "imagename"]
     ) or (
-        # camelCase ending in Name/File/Image suggests doc naming
         any(field_name.endswith(s) for s in ["Name", "File", "Image", "FileName", "ImageName"])
         and has_strong_doc_signal
     )
@@ -1118,7 +1091,7 @@ def match_field(
                 f"({', '.join(kw for kw in DOCUMENT_KEYWORDS if kw in field_lower)}) "
                 f"and looks like a file/name"
             ),
-            entity="DOCUMENT"
+            entity="DOCUMENT",
         )
 
     # ====== 4. DOCUMENT ID DETECTION ======
@@ -1134,9 +1107,10 @@ def match_field(
             match_type=MatchType.DOCUMENT_ID.value,
             reasoning=(
                 f"Document ID detection: field contains document keyword "
-                f"and locator keyword ({', '.join(kw for kw in DOCUMENT_LOCATOR_KEYWORDS if kw in field_lower)})"
+                f"and locator keyword "
+                f"({', '.join(kw for kw in DOCUMENT_LOCATOR_KEYWORDS if kw in field_lower)})"
             ),
-            entity="DOCUMENT"
+            entity="DOCUMENT",
         )
 
     # ====== 5. FEE DETECTION ======
@@ -1154,7 +1128,7 @@ def match_field(
                 f"Fee detection: field contains fee/charge keywords "
                 f"({', '.join(kw for kw in FEE_KEYWORDS if kw in field_lower)})"
             ),
-            entity="FEE"
+            entity="FEE",
         )
 
     # ====== 6. UNMATCHED ======
@@ -1166,58 +1140,32 @@ def match_field(
         confidence=0.0,
         match_type=MatchType.UNMATCHED.value,
         reasoning="No deterministic match found; requires LLM layer for semantic matching",
-        entity=entity
+        entity=entity,
     )
 
 
 def match_batch(
     fields: List[Dict[str, Any]],
     refs: Dict[str, Any],
-    process_name: Optional[str] = None
+    process_name: Optional[str] = None,
 ) -> Dict[str, List[MatchResult]]:
-    """
-    Match a batch of fields and separate into deterministic and unmatched.
-
-    Args:
-        fields: List of field dicts with keys: field_name, column_category (optional), entity (optional)
-        refs: References dictionary from load_references()
-        process_name: Optional process or context name for entity detection
-
-    Returns:
-        Dictionary with keys: "matched" (deterministic) and "unmatched" (needs LLM)
-    """
     matched = []
     unmatched = []
-
     for field_dict in fields:
         field_name = field_dict.get("field_name", "")
         column_category = field_dict.get("column_category")
         entity = field_dict.get("entity")
-
         if not field_name:
             continue
-
-        result = match_field(
-            field_name,
-            column_category,
-            entity,
-            refs,
-            process_name=process_name,
-        )
-
+        result = match_field(field_name, column_category, entity, refs, process_name=process_name)
         if result.match_type == MatchType.UNMATCHED.value:
             unmatched.append(result)
         else:
             matched.append(result)
-
-    return {
-        "matched": matched,
-        "unmatched": unmatched
-    }
+    return {"matched": matched, "unmatched": unmatched}
 
 
 def main():
-    """CLI interface for testing the matching engine."""
     parser = argparse.ArgumentParser(
         description="Deterministic Field Matching Engine",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1226,76 +1174,43 @@ Examples:
   python matching_engine.py --field "dateOfBirth" --category "Customer Details"
   python matching_engine.py --field "processingFee" --category "Loan Details"
   python matching_engine.py --field "aadharFrontLink" --category "Documents"
-  python matching_engine.py --field "annualIncome" --entity "COAPPLICANT"
+  python matching_engine.py --field "annualIncome" --entity "APPLICANT"
+  python matching_engine.py --field "bureauScore" --category "Credit Details"
         """
     )
-
-    parser.add_argument(
-        "--field",
-        "-f",
-        type=str,
-        required=True,
-        help="Partner field name to match"
-    )
-    parser.add_argument(
-        "--category",
-        "-c",
-        type=str,
-        default=None,
-        help="Column category/UI grouping (optional)"
-    )
-    parser.add_argument(
-        "--entity",
-        "-e",
-        type=str,
-        default=None,
-        help="Entity type: APPLICANT, COAPPLICANT, LOAN, DOCUMENT, FEE, OTHER (optional)"
-    )
-    parser.add_argument(
-        "--refs",
-        "-r",
-        type=str,
-        default="./references",
-        help="Path to references directory (default: ./references)"
-    )
-    parser.add_argument(
-        "--json",
-        "-j",
-        action="store_true",
-        help="Output as JSON"
-    )
-
+    parser.add_argument("--field",    "-f", type=str, required=True, help="Partner field name to match")
+    parser.add_argument("--category", "-c", type=str, default=None,  help="Column category/UI grouping (optional)")
+    parser.add_argument("--entity",   "-e", type=str, default=None,  help="Entity type: APPLICANT, COAPPLICANT, LOAN, DOCUMENT, FEE, OTHER")
+    parser.add_argument("--refs",     "-r", type=str, default="./references", help="Path to references directory")
+    parser.add_argument("--json",     "-j", action="store_true",     help="Output as JSON")
     args = parser.parse_args()
 
     try:
-        # Load references
         refs = load_references(args.refs)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"ERROR loading references: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Perform match
     result = match_field(
         field_name=args.field,
         column_category=args.category,
         entity=args.entity,
-        refs=refs
+        refs=refs,
     )
 
-    # Output
     if args.json:
         print(json.dumps(result.to_dict(), indent=2))
     else:
-        print(f"Partner Field: {result.partner_field}")
-        print(f"Entity: {result.entity}")
+        print(f"Partner Field:     {result.partner_field}")
+        print(f"Entity:            {result.entity}")
         if result.column_category:
-            print(f"Category: {result.column_category}")
-        print(f"Match Type: {result.match_type}")
+            print(f"Category:          {result.column_category}")
+        print(f"Match Type:        {result.match_type}")
         print(f"Matched Excel Key: {result.matched_excel_key or '(none)'}")
         if result.matched_json_key:
-            print(f"Matched JSON Key: {result.matched_json_key}")
-        print(f"Confidence: {result.confidence:.2f}")
-        print(f"Reasoning: {result.reasoning}")
+            print(f"Matched JSON Key:  {result.matched_json_key}")
+        print(f"Confidence:        {result.confidence:.2f}")
+        print(f"Reasoning:         {result.reasoning}")
 
 
 if __name__ == "__main__":
