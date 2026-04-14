@@ -941,6 +941,11 @@ with st.sidebar:
         value=False,
         help="If on and ENTITY_CLASSIFIER_GATEWAY_URL is set in .env, classify APPLICANT/LOAN/FEE/… before matching; otherwise use built-in heuristics.",
     )
+    include_build_references = st.toggle(
+        "Include build references in ZIP",
+        value=True,
+        help="Calls the same DB extract + build as POST /references/build before mapping, then adds references/*.json to the ZIP.",
+    )
 
     st.markdown("---")
     st.markdown("## 💾 DB Write")
@@ -1268,8 +1273,8 @@ with tab4:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<p class="callout">One run produces a ZIP: Excel workbook, nested mapping JSON, and LOS schema JSON. '
-        "Nested and schema are also previewed below. Optional DB write uses sidebar toggles.</p>",
+        '<p class="callout">One run produces a ZIP: Excel workbook, nested mapping JSON, LOS schema JSON, and '
+        "(when enabled) reference JSON built from the source DB. Nested and schema are previewed below. Optional DB write uses sidebar toggles.</p>",
         unsafe_allow_html=True,
     )
 
@@ -1294,6 +1299,7 @@ with tab4:
                         "master_id": str(master_id),
                         "save_to_db": str(save_to_db).lower(),
                         "skip_unmatched": str(skip_unmatched).lower(),
+                        "include_build_references": str(include_build_references).lower(),
                     },
                     files={"file": (file_fp.name, file_fp.getvalue(), file_fp.type)},
                     timeout=900,
@@ -1303,12 +1309,18 @@ with tab4:
                     inserted = resp.headers.get("X-DB-Inserted", "—")
                     skipped  = resp.headers.get("X-DB-Skipped",  "—")
                     errors   = resp.headers.get("X-DB-Errors",   "—")
+                    ref_putm = resp.headers.get("X-References-PutM-Rows")
+                    ref_map = resp.headers.get("X-References-Mapping-Rows")
                     st.success(f"Pipeline finished in {elapsed}s ✓")
                     d1, d2, d3, d4 = st.columns(4)
                     d1.metric("DB inserted", inserted)
                     d2.metric("DB skipped",  skipped)
                     d3.metric("DB errors",   errors)
                     d4.metric("Loan param refine", "On" if use_loanparameter_refinement else "Off")
+                    if include_build_references and (ref_putm or ref_map):
+                        r1, r2 = st.columns(2)
+                        r1.metric("Ref build · PUTM rows", ref_putm or "—")
+                        r2.metric("Ref build · mapping rows", ref_map or "—")
 
                     excel_name, xl_b, nest_b, sch_b, zip_names = _unpack_zip_artifacts(resp.content)
 
