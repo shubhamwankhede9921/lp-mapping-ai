@@ -49,6 +49,36 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/llm_mapping", tags=["LP Field Mapping"])
 
 
+def _run_build_references_from_db(
+    settings: Settings,
+    putm_table_override: Optional[str] = None,
+    mapping_table_override: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Extract PUTM + generic mapping from the source DB, run build_references.py outputs
+    into references_dir, and return the same stats payload as POST /references/build.
+    """
+    from app.repository.database import extract_putm_dump, extract_generic_mapping
+
+    dumps_dir = Path(settings.references_dir) / "dumps"
+    dumps_dir.mkdir(parents=True, exist_ok=True)
+
+    putm_path = dumps_dir / "putm_dump.xlsx"
+    mapping_path = dumps_dir / "generic_mapping.csv"
+
+    putm_rows = extract_putm_dump(settings, str(putm_path), putm_table_override)
+    mapping_rows = extract_generic_mapping(settings, str(mapping_path), mapping_table_override)
+
+    result = svc.build_references_from_db_direct(
+        putm_xlsx=str(putm_path),
+        mapping_csv=str(mapping_path),
+        references_dir=settings.references_dir,
+        scripts_dir=settings.scripts_dir,
+    )
+
+    return {**result, "putm_rows": putm_rows, "mapping_rows": mapping_rows}
+
+
 # ── shared helpers ─────────────────────────────────────────────────────────────
 
 def _to_field_mapping(m: dict) -> FieldMapping:
@@ -132,28 +162,16 @@ async def build_references(
     mapping_table_override: Optional[str] = None,
 ) -> Dict[str, Any]:
     try:
-        from app.repository.database import extract_putm_dump, extract_generic_mapping
-
-        dumps_dir = Path(settings.references_dir) / "dumps"
-        dumps_dir.mkdir(parents=True, exist_ok=True)
-
-        putm_path    = dumps_dir / "putm_dump.xlsx"
-        mapping_path = dumps_dir / "generic_mapping.csv"
-
-        putm_rows    = extract_putm_dump(settings, str(putm_path), putm_table_override)
-        mapping_rows = extract_generic_mapping(settings, str(mapping_path), mapping_table_override)
-
-        result = svc.build_references_from_db_direct(
-            putm_xlsx=str(putm_path),
-            mapping_csv=str(mapping_path),
-            references_dir=settings.references_dir,
-            scripts_dir=settings.scripts_dir,
+        data = _run_build_references_from_db(
+            settings,
+            putm_table_override=putm_table_override,
+            mapping_table_override=mapping_table_override,
         )
 
         return {
             "status":  "success",
             "message": "References built successfully",
-            "data": {**result, "putm_rows": putm_rows, "mapping_rows": mapping_rows},
+            "data": data,
         }
 
     except FileNotFoundError as e:
@@ -383,7 +401,7 @@ async def hybrid_llm(
 
 @router.post(
     "/mapping/full-pipeline",
-    summary="All phases → ZIP with Excel, nested mapping JSON, schema JSON, and optional DB write",
+    summary="All phases → ZIP with Excel, nested mapping JSON, schema JSON, optional reference JSONs, and optional DB write",
 )
 async def full_pipeline(
     background_tasks: BackgroundTasks,
@@ -405,6 +423,13 @@ async def full_pipeline(
     master_id: int       = Form(...,   description="FK stored in master_id column of the mapping table"),
     save_to_db: bool     = Form(True,  description="Write results to GENERIC_MAPPING_TABLE in TARGET DB"),
     skip_unmatched: bool = Form(False, description="Skip rows with no matched_excel_key when writing to DB"),
+    include_build_references: bool = Form(
+        True,
+        description=(
+            "Extract from source DB, rebuild field_dictionary / alias_registry / entity_routing "
+            "before mapping (same as POST /references/build), and add those JSON files under references/ in the ZIP"
+        ),
+    ),
     settings: Settings   = Depends(get_settings),
 ):
     # ── DEBUG: confirm settings loaded correctly ───────────────────
@@ -418,8 +443,12 @@ async def full_pipeline(
     # ──────────────────────────────────────────────────────────────
 
     tmp = None
+    ref_meta: Optional[Dict[str, Any]] = None
     try:
         tmp = _save_upload(file)
+
+        if include_build_references:
+            ref_meta = _run_build_references_from_db(settings)
 
         # ── Phase 1: deterministic ─────────────────────────────────────────────
         p1 = svc.run_deterministic(
@@ -543,23 +572,38 @@ async def full_pipeline(
                 f"schema_{safe_client_name}_{safe_process_name}.json",
                 json.dumps(schema_result["schema"], indent=2, ensure_ascii=False),
             )
+            if include_build_references:
+                ref_dir = Path(settings.references_dir)
+                for fname in (
+                    "field_dictionary.json",
+                    "alias_registry.json",
+                    "entity_routing.json",
+                ):
+                    fp = ref_dir / fname
+                    if fp.is_file():
+                        zf.write(fp, arcname=f"references/{fname}")
 
         zip_buffer.seek(0)
         background_tasks.add_task(_safe_unlink, tmp)
         tmp = None
 
+        response_headers: Dict[str, str] = {
+            "Content-Disposition": (
+                f"attachment; filename={safe_client_name}_{safe_process_name}_outputs.zip"
+            ),
+            "X-DB-Inserted": str(db_result["inserted"]),
+            "X-DB-Skipped":  str(db_result["skipped"]),
+            "X-DB-Errors":   str(db_result["errors"]),
+            "X-Master-Id":   str(master_id),
+        }
+        if ref_meta is not None:
+            response_headers["X-References-PutM-Rows"] = str(ref_meta.get("putm_rows", ""))
+            response_headers["X-References-Mapping-Rows"] = str(ref_meta.get("mapping_rows", ""))
+
         return Response(
             content=zip_buffer.getvalue(),
             media_type="application/zip",
-            headers={
-                "Content-Disposition": (
-                    f"attachment; filename={safe_client_name}_{safe_process_name}_outputs.zip"
-                ),
-                "X-DB-Inserted": str(db_result["inserted"]),
-                "X-DB-Skipped":  str(db_result["skipped"]),
-                "X-DB-Errors":   str(db_result["errors"]),
-                "X-Master-Id":   str(master_id),
-            },
+            headers=response_headers,
         )
 
     except Exception as e:
