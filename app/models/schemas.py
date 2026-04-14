@@ -31,6 +31,7 @@ class FullPipelineRequest(BaseModel):
     use_embeddings: bool = False
     use_llm: bool = True
     sheet_filter: Optional[str] = None
+    include_build_references: bool = True
 
 
 # ── Response models ────────────────────────────────────────────────────────────
