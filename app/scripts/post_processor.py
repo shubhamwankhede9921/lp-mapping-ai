@@ -24,20 +24,42 @@ Fix 2 – same-json_key collision bypass
     the LOANPARAMETER bucket.  When ALL colliding entries share the same
     resolved json_key the entire collision group is left untouched.
 
-Fix 3 – duplicate excel key: drop losers entirely (non-special keys only)
-    For non-special excel keys: if the same key appears more than once, only
-    the highest-confidence entry (first occurrence on tie) is kept; all
-    lower-confidence duplicates are REMOVED from the output entirely.
-    Special fields — DOCUMENTNAME, DOCUMENTID, FEE, LOANPARAMETER,
-    LOANAPPLICANTPARAM and CUSTOMERPARAM(ETER) — are NEVER touched by this
-    logic; every occurrence is preserved as-is and renumbered sequentially
-    by process_results().
+Fix 3 – duplicate excel key: displace losers (non-special keys only)
+    For non-special excel keys: if the same key appears more than once *for
+    the same (column_category, entity)*, the highest-confidence entry keeps
+    the key; lower-confidence rows are moved to a fresh generic LOANPARAMETER
+    slot (moved_by_collision_resolver=True). Rows that share an excel key
+    but differ in column_category or entity are not treated as duplicates —
+    they all keep the key. Special fields — DOCUMENTNAME, DOCUMENTID, FEE,
+    LOANPARAMETER, LOANAPPLICANTPARAM and CUSTOMERPARAM(ETER) — are never
+    deduped here; they stay as-is and are renumbered sequentially by
+    process_results().
 """
 
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional, Union
 import re
+
+
+def _coapplicant_slot_from_entity(entity: Optional[str]) -> Optional[int]:
+    """Co-applicant index for LOANCOAPP{n}CUSTPARAM* (aligned with match_context.coapplicant_slot_from_entity)."""
+    e = (entity or "").strip().upper()
+    if not e.startswith("COAPPLICANT"):
+        return None
+    if e == "COAPPLICANT":
+        return 1
+    m = re.match(r"COAPPLICANT(\d+)$", e)
+    if m:
+        return int(m.group(1))
+    return 1
+
+
+def _coapplicant_custparam_base(entity: Optional[str]) -> Optional[str]:
+    slot = _coapplicant_slot_from_entity(entity)
+    if slot is None:
+        return None
+    return f"LOANCOAPP{slot}CUSTPARAM"
 
 
 @dataclass
@@ -52,6 +74,9 @@ class MatchResult:
     confidence: float
     match_type: str
     reasoning: str
+    previous_mapping_reason: str = ""
+    llm_change_reason: str = ""
+    llm_param_bucket_reason: str = ""
     needs_review: bool = False
     # Set to True exclusively by resolve_duplicate_excel_keys() so that
     # _reroute_parameter_base_key() never re-promotes the field.
@@ -135,6 +160,8 @@ class PostProcessor:
         self.fee_counter = 0
         self.loan_param_counter = 0
         self.customer_param_counter = 0
+        # Per co-applicant slot: next index for LOANCOAPP{n}CUSTPARAM{k}
+        self._loancoapp_custparam_by_slot: dict[int, int] = {}
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -147,8 +174,8 @@ class PostProcessor:
 
         - DOCUMENTNAME, DOCUMENTID, FEE, LOANPARAMETER, CUSTOMERPARAM(ETER),
           and LOANAPPLICANTPARAM are always renumbered 1, 2, 3 ...
-        - If multiple partner fields map to the same excel key, only the
-          highest-confidence winner is kept; all losers are dropped entirely.
+        - If multiple partner fields map to the same non-special excel key,
+          losers are displaced to LOANPARAMETER* (see resolve_duplicate_excel_keys).
         """
         normalized: list[MatchResult] = []
         for item in results:
@@ -163,6 +190,9 @@ class PostProcessor:
                         confidence=item.get("confidence", 0.0),
                         match_type=item.get("match_type", "unmatched"),
                         reasoning=item.get("reasoning", ""),
+                        previous_mapping_reason=item.get("previous_mapping_reason", ""),
+                        llm_change_reason=item.get("llm_change_reason", ""),
+                        llm_param_bucket_reason=item.get("llm_param_bucket_reason", ""),
                         needs_review=item.get("needs_review", False),
                         moved_by_collision_resolver=item.get(
                             "moved_by_collision_resolver", False
@@ -173,8 +203,9 @@ class PostProcessor:
                 normalized.append(item)
 
         # Resolve duplicate excel key collisions before further processing.
-        # Losers are DROPPED entirely — regardless of whether the collision
-        # is between different partner_field names or the same one repeated.
+        # Losers within the same (excel_key, column_category, entity) group are
+        # displaced to LOANPARAMETER; same excel_key under different category
+        # or entity is left untouched.
         normalized = self.resolve_duplicate_excel_keys(normalized)
 
         processed: list[dict] = []
@@ -185,15 +216,16 @@ class PostProcessor:
             original_base_key = self._get_base_key(result.matched_excel_key)
             routed_excel_key = self._reroute_parameter_base_key(result)
             base_key = self._get_base_key(routed_excel_key)
+            coapp_custparam_base = self._is_loancoapp_custparam_unnumbered_base(base_key)
 
             if original_base_key == "LOANPARAMETER":
-                if base_key == "LOANAPPLICANTPARAM":
+                if base_key == "LOANAPPLICANTPARAM" or coapp_custparam_base:
                     converted_loan_params += 1
                 else:
                     kept_loan_params += 1
 
-            if base_key in self.SPECIAL_FIELDS:
-                if base_key in self.SEQUENTIAL_RENUMBER_FIELDS:
+            if base_key in self.SPECIAL_FIELDS or coapp_custparam_base:
+                if base_key in self.SEQUENTIAL_RENUMBER_FIELDS or coapp_custparam_base:
                     numbered_key = self.assign_number(base_key)
                 elif routed_excel_key != base_key:
                     numbered_key = routed_excel_key
@@ -211,6 +243,9 @@ class PostProcessor:
                         "confidence": result.confidence,
                         "match_type": result.match_type,
                         "reasoning": result.reasoning,
+                        "previous_mapping_reason": result.previous_mapping_reason,
+                        "llm_change_reason": result.llm_change_reason,
+                        "llm_param_bucket_reason": result.llm_param_bucket_reason,
                         "needs_review": result.needs_review or result.confidence < 0.80,
                     }
                 )
@@ -226,6 +261,9 @@ class PostProcessor:
                         "confidence": result.confidence,
                         "match_type": result.match_type,
                         "reasoning": result.reasoning,
+                        "previous_mapping_reason": result.previous_mapping_reason,
+                        "llm_change_reason": result.llm_change_reason,
+                        "llm_param_bucket_reason": result.llm_param_bucket_reason,
                         "needs_review": result.needs_review or result.confidence < 0.80,
                     }
                 )
@@ -233,7 +271,7 @@ class PostProcessor:
         if converted_loan_params or kept_loan_params:
             print(
                 "PostProcessor parameter routing: "
-                f"converted LOANPARAMETER -> LOANAPPLICANTPARAM = {converted_loan_params}, "
+                f"converted LOANPARAMETER -> LOANAPPLICANTPARAM / LOANCOAPP*CUSTPARAM = {converted_loan_params}, "
                 f"kept as LOANPARAMETER = {kept_loan_params}"
             )
 
@@ -248,22 +286,28 @@ class PostProcessor:
     ) -> list[MatchResult]:
         """
         For non-special excel keys only: if the same excel key appears more
-        than once, keep the single highest-confidence entry and DROP all
-        lower-confidence duplicates.
+        than once *within the same (column_category, entity)*, keep the
+        highest-confidence entry on that key and move every other row in that
+        group to a generic LOANPARAMETER bucket (numbered later). Two rows with
+        the same excel key but different column_category or entity are not
+        considered duplicates and are left unchanged.
 
         Special fields (LOANPARAMETER, DOCUMENTNAME, DOCUMENTID, FEE,
         CUSTOMERPARAM, CUSTOMERPARAMETER, LOANAPPLICANTPARAM) are NEVER
-        touched here — they are left exactly as received and renumbered
+        deduped here — they are left exactly as received and renumbered
         sequentially later by process_results().
 
         Resolution rules
         ----------------
         1. Special/numbered base keys → skip entirely, keep all untouched.
 
-        2. Non-special excel key with 2+ entries:
-           a. Keep the highest-confidence entry (winner).
-           b. Every lower-confidence entry is REMOVED from the output.
-           c. Tie-breaking (equal confidence): first occurrence wins.
+        2. Non-special excel key with 2+ entries sharing the same normalized
+           column_category and entity:
+           a. Keep the highest-confidence entry (winner) unchanged.
+           b. Each lower-confidence entry stays in the list but is displaced
+              to matched_excel_key=\"LOANPARAMETER\" with
+              moved_by_collision_resolver=True (ties: first occurrence wins).
+           c. Displaced rows are flagged needs_review=True.
 
         Parameters
         ----------
@@ -272,34 +316,40 @@ class PostProcessor:
         Returns
         -------
         list[MatchResult]
-            May be shorter than *results*; loser entries are omitted entirely.
-            Special-field entries are always preserved unchanged.
+            Same length as *results*. Special-field entries are unchanged.
         """
         # ----------------------------------------------------------------
-        # Build index of non-special excel keys only.
-        # Special fields are never entered into the index and are therefore
-        # guaranteed to pass through the final filter untouched.
+        # Build index of non-special excel keys × (category, entity).
+        # Same matched_excel_key under different column_category or entity
+        # does not count as a duplicate group.
         # ----------------------------------------------------------------
-        key_index: dict[str, list[tuple[int, MatchResult]]] = defaultdict(list)
+        key_index: dict[tuple[str, str, str], list[tuple[int, MatchResult]]] = (
+            defaultdict(list)
+        )
         for pos, result in enumerate(results):
             base_key = self._get_base_key(result.matched_excel_key)
-            if base_key in self.SPECIAL_FIELDS:
-                continue  # always preserve special fields as-is
-            key_index[result.matched_excel_key].append((pos, result))
+            if base_key in self.SPECIAL_FIELDS or self._is_loancoapp_custparam_unnumbered_base(
+                base_key
+            ):
+                continue  # always preserve special / co-app param buckets as-is
+            norm_cat = self._normalize_text(result.column_category)
+            norm_ent = (result.entity or "").strip().upper()
+            composite = (result.matched_excel_key, norm_cat, norm_ent)
+            key_index[composite].append((pos, result))
 
-        # Only process keys that have more than one entry
-        candidates: dict[str, list[tuple[int, MatchResult]]] = {
-            excel_key: entries
-            for excel_key, entries in key_index.items()
+        # Only process composite keys that have more than one entry
+        candidates: dict[tuple[str, str, str], list[tuple[int, MatchResult]]] = {
+            composite: entries
+            for composite, entries in key_index.items()
             if len(entries) > 1
         }
 
         if not candidates:
             return results  # fast-path: nothing to do
 
-        positions_to_drop: set[int] = set()
+        updated: list[MatchResult] = list(results)
 
-        for excel_key, entries in candidates.items():
+        for (excel_key, norm_cat, norm_ent), entries in candidates.items():
             # Stable descending sort by confidence — first occurrence wins ties
             ranked = sorted(entries, key=lambda t: t[1].confidence, reverse=True)
             winner_pos, winner = ranked[0]
@@ -308,18 +358,38 @@ class PostProcessor:
             loser_fields = [r.partner_field for _, r in losers]
             print(
                 f"[DuplicateKeyResolver] Non-special excel key '{excel_key}' "
+                f"(column_category~={norm_cat!r}, entity={norm_ent!r}) "
                 f"has {len(entries)} duplicate entries. "
                 f"Winner (kept): '{winner.partner_field}' "
                 f"(confidence={winner.confidence:.2f}). "
-                f"Dropped: {loser_fields}"
+                f"Displaced to LOANPARAMETER: {loser_fields}"
             )
 
-            for loser_pos, _ in losers:
-                positions_to_drop.add(loser_pos)
+            for loser_pos, loser in losers:
+                prev_reason = (loser.reasoning or "").strip()
+                bump = (
+                    f"Duplicate excel_key '{excel_key}': lower confidence than "
+                    f"'{winner.partner_field}' ({winner.confidence:.2f}); "
+                    "displaced to generic LOANPARAMETER."
+                )
+                reasoning = f"{prev_reason}; {bump}" if prev_reason else bump
+                updated[loser_pos] = MatchResult(
+                    partner_field=loser.partner_field,
+                    column_category=loser.column_category,
+                    entity=loser.entity,
+                    matched_excel_key="LOANPARAMETER",
+                    json_key="",
+                    confidence=min(float(loser.confidence or 0.0), 0.79),
+                    match_type="duplicate_excel_key_displaced",
+                    reasoning=reasoning.strip(),
+                    previous_mapping_reason=loser.previous_mapping_reason,
+                    llm_change_reason=loser.llm_change_reason,
+                    llm_param_bucket_reason=loser.llm_param_bucket_reason,
+                    needs_review=True,
+                    moved_by_collision_resolver=True,
+                )
 
-        # Special-field positions are never in positions_to_drop, so they
-        # always survive this filter unchanged.
-        return [r for pos, r in enumerate(results) if pos not in positions_to_drop]
+        return updated
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -384,10 +454,24 @@ class PostProcessor:
             return result.matched_excel_key  # stay as LOANPARAMETER
 
         if result.match_type == "llm_parameter_bucket":
+            if (
+                self._get_base_key(result.matched_excel_key) == "LOANPARAMETER"
+                and self._is_customer_related_parameter(result)
+            ):
+                co_base = _coapplicant_custparam_base(result.entity)
+                if co_base:
+                    return co_base
             return result.matched_excel_key
         if self._is_customer_related_parameter(result):
+            co_base = _coapplicant_custparam_base(result.entity)
+            if co_base:
+                return co_base
             return "LOANAPPLICANTPARAM"
         return result.matched_excel_key
+
+    def _is_loancoapp_custparam_unnumbered_base(self, base_key: str) -> bool:
+        """True for LOANCOAPP{n}CUSTPARAM before trailing param index is assigned."""
+        return bool(re.match(r"^LOANCOAPP\d+CUSTPARAM$", base_key or ""))
 
     def resolve_json_key(self, excel_key: str) -> str:
         """Look up json_key from field_dictionary; return excel_key if not found."""
@@ -421,6 +505,14 @@ class PostProcessor:
         if canonical == "LOANAPPLICANTPARAM":
             self.customer_param_counter += 1
             return f"LOANAPPLICANTPARAM{self.customer_param_counter}"
+        m_co = re.match(r"^LOANCOAPP(\d+)CUSTPARAM$", canonical)
+        if m_co:
+            slot = int(m_co.group(1))
+            self._loancoapp_custparam_by_slot[slot] = (
+                self._loancoapp_custparam_by_slot.get(slot, 0) + 1
+            )
+            idx = self._loancoapp_custparam_by_slot[slot]
+            return f"LOANCOAPP{slot}CUSTPARAM{idx}"
         return base_key
 
     def _get_base_key(self, matched_key: str) -> str:

@@ -319,8 +319,18 @@ def main():
         args.input_file, refs, args.process, args.sheet
     )
 
-    print(f"Preparing LLM context for {len(unmatched)} unmatched fields...")
-    entity_contexts = prepare_llm_context(unmatched, refs, args.client_name, args.process)
+    # Also include LOANPARAMETER/LOANAPPLICANTPARAM matches for LLM refinement
+    loanparam_matches = [
+        m for m in matched
+        if m.matched_excel_key and (
+            m.matched_excel_key.startswith("LOANPARAMETER") or
+            m.matched_excel_key.startswith("LOANAPPLICANTPARAM")
+        )
+    ]
+    llm_input_fields = unmatched + loanparam_matches
+    
+    print(f"Preparing LLM context for {len(llm_input_fields)} fields ({len(unmatched)} unmatched + {len(loanparam_matches)} LOANPARAMETER refinements)...")
+    entity_contexts = prepare_llm_context(llm_input_fields, refs, args.client_name, args.process)
 
     # Print summary
     print_summary(all_fields, matched, unmatched, entity_contexts)

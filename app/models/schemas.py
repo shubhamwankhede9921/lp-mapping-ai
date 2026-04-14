@@ -44,6 +44,9 @@ class FieldMapping(BaseModel):
     confidence: float
     match_type: str
     reasoning: str
+    previous_mapping_reason: Optional[str] = None
+    llm_change_reason: Optional[str] = None
+    llm_param_bucket_reason: Optional[str] = None
     needs_review: bool
     fuzzy_score: Optional[float] = None
     embedding_score: Optional[float] = None

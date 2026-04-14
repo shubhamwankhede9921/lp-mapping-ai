@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -386,10 +387,24 @@ def _is_customer_related_loan_parameter(mapping):
     return False
 
 
+def _finalize_coapplicant_custparam_base(entity: str):
+    """Unnumbered LOANCOAPP{n}CUSTPARAM for co-applicant custom params (matches match_context)."""
+    e = (entity or "").strip().upper()
+    if not e.startswith("COAPPLICANT"):
+        return None
+    if e == "COAPPLICANT":
+        return "LOANCOAPP1CUSTPARAM"
+    m = re.match(r"COAPPLICANT(\d+)$", e)
+    if m:
+        return f"LOANCOAPP{int(m.group(1))}CUSTPARAM"
+    return "LOANCOAPP1CUSTPARAM"
+
+
 def route_customer_params(mappings):
-    """Route parameter fallbacks to customer, fee, or loan buckets by entity/category/field."""
+    """Route parameter fallbacks to customer, fee, loan, or co-applicant PUTM buckets."""
     total_loan_parameter_candidates = 0
     rerouted_customer = 0
+    rerouted_coapp = 0
     rerouted_fee = 0
     kept_loan_level = 0
 
@@ -404,8 +419,13 @@ def route_customer_params(mappings):
         elif excel_key == "LOANPARAMETER":
             total_loan_parameter_candidates += 1
             if _is_customer_related_loan_parameter(mapping):
-                mapping["matched_excel_key"] = "LOANAPPLICANTPARAM"
-                rerouted_customer += 1
+                co_base = _finalize_coapplicant_custparam_base(entity)
+                if co_base:
+                    mapping["matched_excel_key"] = co_base
+                    rerouted_coapp += 1
+                else:
+                    mapping["matched_excel_key"] = "LOANAPPLICANTPARAM"
+                    rerouted_customer += 1
             else:
                 kept_loan_level += 1
 
@@ -414,6 +434,7 @@ def route_customer_params(mappings):
             "  LOANPARAMETER routing summary: "
             f"total={total_loan_parameter_candidates}, "
             f"converted_to_LOANAPPLICANTPARAM={rerouted_customer}, "
+            f"converted_to_LOANCOAPP_CUSTPARAM={rerouted_coapp}, "
             f"rerouted_to_FEE={rerouted_fee}, "
             f"kept_as_LOANPARAMETER={kept_loan_level}"
         )
@@ -421,6 +442,11 @@ def route_customer_params(mappings):
         print(
             f"  Rerouted {rerouted_customer} customer-related LOANPARAMETER fields "
             "to LOANAPPLICANTPARAM"
+        )
+    if rerouted_coapp > 0:
+        print(
+            f"  Rerouted {rerouted_coapp} co-applicant LOANPARAMETER fields "
+            "to LOANCOAPP*CUSTPARAM"
         )
     if rerouted_fee > 0:
         print(f"  Rerouted {rerouted_fee} FEE-entity fields to FEE")
@@ -490,6 +516,7 @@ def auto_number_special_fields(mappings):
     fee_counter = 1
     loan_param_counter = 1
     customer_param_counter = 1
+    loancoapp_custparam_by_slot: dict[int, int] = defaultdict(int)
 
     for mapping in mappings:
         excel_key = mapping.get("matched_excel_key", "")
@@ -511,6 +538,13 @@ def auto_number_special_fields(mappings):
         elif excel_key in ("CUSTOMERPARAMETER", "LOANAPPLICANTPARAM"):
             mapping["matched_excel_key"] = f"LOANAPPLICANTPARAM{customer_param_counter}"
             customer_param_counter += 1
+        else:
+            m_co = re.fullmatch(r"LOANCOAPP(\d+)CUSTPARAM", excel_key)
+            if m_co:
+                slot = int(m_co.group(1))
+                loancoapp_custparam_by_slot[slot] += 1
+                n = loancoapp_custparam_by_slot[slot]
+                mapping["matched_excel_key"] = f"LOANCOAPP{slot}CUSTPARAM{n}"
 
     return mappings
 

@@ -12,6 +12,16 @@ class Settings(BaseSettings):
         "",
         env="PARAMETER_CLASSIFIER_GATEWAY_URL",
     )
+    # Dedicated workflow: remap deterministic LOANPARAMETER* buckets using PUTM catalog
+    loanparameter_refinement_gateway_url: str = Field(
+        "",
+        env="LOANPARAMETER_REFINEMENT_GATEWAY_URL",
+    )
+    # Optional: classify partner columns into LOS entity (APPLICANT, LOAN, FEE, …) before matching
+    entity_classifier_gateway_url: str = Field(
+        "",
+        env="ENTITY_CLASSIFIER_GATEWAY_URL",
+    )
     llm_use_form_data: bool = Field(True,               env="LLM_USE_FORM_DATA")
     llm_task_field: str     = Field("task",             env="LLM_TASK_FIELD")
     llm_task_value: str     = Field("lp_field_mapping", env="LLM_TASK_VALUE")

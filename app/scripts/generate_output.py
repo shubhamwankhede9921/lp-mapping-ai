@@ -100,6 +100,9 @@ def _populate_mapping_sheet(ws, mappings: list[dict]) -> None:
         "Confidence",
         "Match Type",
         "Reasoning",
+        "Previous Mapping Reason",
+        "LLM Change Reason",
+        "LLM Param Bucket Reason",
         "Needs Review"
     ]
 
@@ -131,6 +134,9 @@ def _populate_mapping_sheet(ws, mappings: list[dict]) -> None:
             mapping.get("confidence", 0.0),
             mapping.get("match_type", ""),
             mapping.get("reasoning", ""),
+            mapping.get("previous_mapping_reason", ""),
+            mapping.get("llm_change_reason", ""),
+            mapping.get("llm_param_bucket_reason", ""),
             "YES" if needs_review else "NO"
         ]
 
@@ -170,14 +176,17 @@ def _populate_mapping_sheet(ws, mappings: list[dict]) -> None:
         "F": 12,  # Confidence
         "G": 18,  # Match Type
         "H": 40,  # Reasoning
-        "I": 12   # Needs Review
+        "I": 45,  # Previous Mapping Reason
+        "J": 45,  # LLM Change Reason
+        "K": 45,  # LLM Param Bucket Reason
+        "L": 12,  # Needs Review
     }
 
     for col, width in column_widths.items():
         ws.column_dimensions[col].width = width
 
     ws.freeze_panes = "A2"
-    ws.auto_filter.ref = f"A1:I{len(mappings) + 1}"
+    ws.auto_filter.ref = f"A1:L{len(mappings) + 1}"
 
 
 def _populate_summary_sheet(

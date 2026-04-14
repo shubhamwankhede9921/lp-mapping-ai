@@ -5,8 +5,10 @@ Deterministic Field Matching Engine
 
 Core matching layer that maps partner fields to internal excel_keys without using an LLM.
 Loads reference files (field_dictionary, alias_registry, entity_routing) and evaluates
-fields in strict priority order: exact match (raw) → exact match (prefix-stripped) →
-alias tiers → document detection → document ID detection → fee detection → unmatched.
+fields in strict priority order: fee/charge semantics (entity FEE, excel_key FEE) →
+exact match (raw) → exact match (prefix-stripped) →
+alias tiers (entity-aware for COAPPLICANT vs applicant-scoped PUTM keys) → document
+detection → document ID detection → unmatched.
 
 Usage:
     # As a module
@@ -120,12 +122,81 @@ DOCUMENT_KEYWORDS = {
     "document"
 }
 
+# Do not include generic loan terms like "emi" or "interest" alone — they match
+# schedule/pricing columns (e.g. "1ST EMI DATE", "INTEREST RATE") and wrongly
+# force entity=FEE before alias / semantic matching can run.
+# Substrings for fee/charge semantics. Do not include bare "processing" or "premium":
+# they match loan fields like processingFeePercentage and insurance premium amounts.
 FEE_KEYWORDS = {
-    "fee", "fees", "charge", "charges", "commission", "premium",
-    "processing", "interest", "emi"
+    "fee",
+    "fees",
+    "charge",
+    "charges",
+    "commission",
 }
 
 DOCUMENT_LOCATOR_KEYWORDS = {"link", "url", "path", "id", "identifier"}
+
+# Substrings that indicate a credential field (password/PIN for a link, etc.). These must
+# not be classified as DOCUMENTID: they satisfy document + locator ("link") but are not IDs.
+CREDENTIAL_KEYWORD_HINTS = frozenset({"password", "passphrase", "passcode"})
+
+# Alias forward keys must be at least this long to qualify for subsequence bridge (avoid noise).
+_CREDENTIAL_ALIAS_BRIDGE_MIN_KEY_LEN = 10
+
+
+def _is_subsequence(needle: str, haystack: str) -> bool:
+    """True if needle can be formed by deleting characters from haystack (order preserved)."""
+    if not needle:
+        return True
+    i = 0
+    for c in haystack:
+        if i < len(needle) and needle[i] == c:
+            i += 1
+    return i == len(needle)
+
+
+def _credential_alias_bridge_variant(
+    field_name: str,
+    forward_aliases: Dict[str, Any],
+) -> Optional[str]:
+    """
+    Find a credential-related forward alias whose key is a subsequence of the normalized
+    field (digits stripped). Prefer the longest key — e.g. bankstatementlinkpassword still
+    matches bankstatementsavingsaccount…linkpassword without hardcoding partner names.
+
+    Returns a registry variant string to re-enter matching, or None.
+    """
+    if not forward_aliases or not field_name:
+        return None
+    nb_nd = re.sub(r"\d+", "", normalize_basic(field_name))
+    if len(nb_nd) < _CREDENTIAL_ALIAS_BRIDGE_MIN_KEY_LEN:
+        return None
+
+    cred_in_key = ("password", "passphrase", "passcode", "pin")
+    best_key: Optional[str] = None
+    best_len = 0
+    for key in forward_aliases:
+        if len(key) < _CREDENTIAL_ALIAS_BRIDGE_MIN_KEY_LEN:
+            continue
+        if not any(t in key for t in cred_in_key):
+            continue
+        if not _is_subsequence(key, nb_nd):
+            continue
+        if len(key) > best_len:
+            best_len = len(key)
+            best_key = key
+
+    if not best_key:
+        return None
+
+    entry = forward_aliases.get(best_key) or {}
+    variants = entry.get("variants") or []
+    if variants and isinstance(variants[0], str) and variants[0].strip():
+        return variants[0].strip()
+
+    return None
+
 
 CATEGORY_STOPWORDS = {
     "lead", "details", "detail", "data", "info", "information", "section",
@@ -142,6 +213,61 @@ ENTITY_CATEGORY_HINTS = {
     "LOAN": ("loan", "disbursement", "repayment", "emi", "interest", "vehicle"),
     "APPLICANT": ("applicant", "customer", "borrower"),
 }
+
+# Token hits (camelCase / PascalCase) for fee/charge semantics — avoids missing
+# `\bcharge\b` when "Charge" is glued to another word (e.g. siteVisitCharge).
+_FEE_CHARGE_TOKENS = frozenset({
+    "fee", "fees", "charge", "charges", "charging", "commission", "premium",
+})
+
+
+def partner_field_excludes_generic_fee_bucket(field_name: Optional[str]) -> bool:
+    """
+    True when the field must not be routed as the generic FEE entity / FEE excel bucket:
+    insurance premium or amount columns; loan processing fee *percentage* (loan pricing).
+    """
+    if not field_name:
+        return False
+    field_lower = field_name.lower()
+    norm = re.sub(r"[^a-z0-9]+", "", field_lower)
+    if "insurance" in field_lower:
+        return True
+    if "processingfee" in norm and re.search(r"percent|pct|per\b", field_lower):
+        return True
+    return False
+
+
+def field_implies_fee_charge_semantics(field_name: Optional[str]) -> bool:
+    """
+    True when the partner field name denotes a fee/charge (maps to entity FEE).
+    Uses substring checks aligned with FEE_KEYWORDS plus tokenized camelCase splits
+    so names like siteVisitCharge / clearingCharges match reliably.
+    """
+    if not field_name:
+        return False
+    if partner_field_excludes_generic_fee_bucket(field_name):
+        return False
+    field_lower = field_name.lower()
+    if any(kw in field_lower for kw in FEE_KEYWORDS):
+        return True
+    # "processing fee" phrase (substring "processing" alone is intentionally omitted from FEE_KEYWORDS)
+    if "processing" in field_lower and "fee" in field_lower:
+        return True
+    tokens = set(_tokenize_text(field_name)) & _FEE_CHARGE_TOKENS
+    if "premium" in tokens and "insurance" in field_lower:
+        tokens.discard("premium")
+    if "fee" in tokens and re.search(r"processing\s*fee|processingfee", field_lower):
+        # processingFeePercentage etc. — loan pricing, not generic FEE bucket
+        if re.search(r"percent|pct|per\b", field_lower):
+            tokens.discard("fee")
+    if tokens:
+        return True
+    blob = f"{field_lower} "
+    if re.search(r"\bcharges?\b", blob, re.I):
+        return True
+    if re.search(r"\bfee(s)?\b", blob, re.I) and "feedback" not in field_lower:
+        return True
+    return False
 
 
 def normalize_category(value: Optional[str]) -> str:
@@ -432,6 +558,30 @@ def detect_entity(
     entity_routing: Dict[str, str],
     process_name: Optional[str] = None
 ) -> str:
+    field_lower = (field_name or "").lower()
+    cat_lower = (column_category or "").lower()
+    blob = f"{field_lower} {cat_lower}"
+    # Fee / charge semantics override broad sheet labels like "Loan Details"
+    # so partner charge columns route to FEE entity (matches fee bucket rules).
+    if field_implies_fee_charge_semantics(field_name):
+        return "FEE"
+    if any(
+        t in blob
+        for t in (
+            "processing fee",
+            "processing fees",
+            "service fee",
+            "gst fee",
+            "insurance fee",
+            "stamp duty",
+            "commission",
+            "penalty fee",
+            "other charges",
+            "other's charges",
+        )
+    ):
+        return "FEE"
+
     if column_category:
         if column_category in entity_routing:
             return entity_routing[column_category]
@@ -444,8 +594,6 @@ def detect_entity(
         for entity_name, hints in ENTITY_CATEGORY_HINTS.items():
             if any(hint in normalized_category for hint in hints):
                 return entity_name
-
-    field_lower = field_name.lower()
 
     if any(x in field_lower for x in ["guarantor", "guaranter", "guaraontor"]):
         match = re.search(r'guarantor(\d)', field_lower)
@@ -465,8 +613,6 @@ def detect_entity(
         return "LOAN"
     if any(x in field_lower for x in ["document", "upload", "file", "attachment"]):
         return "DOCUMENT"
-    if any(x in field_lower for x in ["fee", "charge", "commission"]):
-        return "FEE"
 
     if process_name:
         return entity_routing.get(process_name, "APPLICANT")
@@ -672,36 +818,219 @@ def _confidence_for_tier(tier: str) -> float:
     }.get(tier, 0.50)
 
 
+def _coapplicant_slot_index(current_entity: str) -> int:
+    e = (current_entity or "").strip().upper()
+    if e == "COAPPLICANT":
+        return 1
+    m = re.match(r"^COAPPLICANT(\d+)$", e)
+    if m:
+        return int(m.group(1))
+    return 1
+
+
+def _is_applicant_scoped_putm_excel_key(excel_key: str) -> bool:
+    """
+    True when excel_key is clearly primary-applicant or applicant-parameter
+    scoped (prefix / naming convention), excluding keys that are already
+    co-applicant-scoped and excluding neutral catalogue keys that carry no
+    applicant prefix in their excel_key.
+    """
+    ek = (excel_key or "").strip().upper()
+    if not ek or ek.startswith("COAPPLICANT") or _is_coapplicant_scoped_putm_excel_key(ek):
+        return False
+    if re.match(r"^LOANAPPLICANTPARAM\d+$", ek):
+        return True
+    if ek.startswith("APPLICANT"):
+        return True
+    return False
+
+
+def _remap_applicant_putm_to_coapplicant_catalogue(
+    current_entity: str,
+    applicant_style_excel_key: str,
+    by_excel_key_index: Dict[str, Tuple[str, str]],
+    field_dictionary_index: Dict[str, List[Tuple[str, str, str]]],
+    field_dictionary: Dict[str, Any],
+    process_name: Optional[str],
+) -> Optional[Tuple[str, str]]:
+    """
+    Map applicant-scoped PUTM excel_keys to the matching co-applicant slot
+    for index N using prefix transforms, then validate against the field
+    dictionary (no per-field or per-partner hardcoding).
+    """
+    if not (current_entity or "").strip().upper().startswith("COAPPLICANT"):
+        return None
+    n = _coapplicant_slot_index(current_entity)
+    pref = f"COAPPLICANT{n}"
+    src = (applicant_style_excel_key or "").strip()
+    eu = src.upper()
+
+    candidates: List[str] = []
+    m = re.match(r"^APPLICANTCUSTOMER(.+)$", eu)
+    if m:
+        candidates.append(f"{pref}{m.group(1)}")
+    cand_sub = re.sub(r"^(?i)applicant", pref, src, count=1)
+    if cand_sub.upper() != eu:
+        candidates.append(cand_sub.upper())
+    m2 = re.match(r"^LOANAPPLICANTPARAM(\d+)$", eu, re.I)
+    if m2:
+        candidates.append(f"LOANCOAPP{n}CUSTPARAM{m2.group(1)}".upper())
+
+    seen: set[str] = set()
+    for c in candidates:
+        cu = c.upper()
+        if cu in seen:
+            continue
+        seen.add(cu)
+        nb = normalize_basic(cu)
+        if nb in by_excel_key_index:
+            ek, jk = by_excel_key_index[nb]
+            if process_name and not _is_excel_key_allowed_for_process(
+                field_dictionary, ek, process_name
+            ):
+                continue
+            return ek, jk
+        if nb in field_dictionary_index:
+            best_ek, best_jk = _select_best_candidate(
+                field_dictionary_index[nb],
+                current_entity,
+                None,
+                process_name,
+                field_dictionary,
+            )
+            if normalize_basic(best_ek) in by_excel_key_index:
+                ek2, jk2 = by_excel_key_index[normalize_basic(best_ek)]
+                if process_name and not _is_excel_key_allowed_for_process(
+                    field_dictionary, ek2, process_name
+                ):
+                    continue
+                return ek2, jk2 or best_jk or jk2
+    return None
+
+
+def _first_loancoapp_custparam_for_entity(
+    current_entity: str,
+    field_dictionary: Dict[str, Any],
+    process_name: Optional[str],
+) -> Optional[Tuple[str, str]]:
+    """First numbered LOANCOAPP{n}CUSTPARAM* in catalogue for this co-applicant slot."""
+    if not (current_entity or "").strip().upper().startswith("COAPPLICANT"):
+        return None
+    n = _coapplicant_slot_index(current_entity)
+    prefix = f"LOANCOAPP{n}CUSTPARAM"
+    by_ek = field_dictionary.get("by_excel_key") or {}
+
+    def _tail_num(ek: str) -> int:
+        m = re.search(r"(\d+)$", ek)
+        return int(m.group(1)) if m else 0
+
+    keys = sorted(
+        (k for k in by_ek if k.upper().startswith(prefix)),
+        key=_tail_num,
+    )
+    for ek in keys:
+        if process_name and not _is_excel_key_allowed_for_process(
+            field_dictionary, ek, process_name
+        ):
+            continue
+        jk = (by_ek.get(ek) or {}).get("json_key") or ""
+        return ek, jk
+    return None
+
+
 def _try_entity_substitution(
     excel_key: str,
     current_entity: str,
     field_dictionary_index: Dict[str, List[Tuple[str, str, str]]],
     field_dictionary: Dict[str, Any],
     process_name: Optional[str] = None,
-) -> Tuple[Optional[str], float]:
-    if not (current_entity.startswith("COAPPLICANT") or current_entity.startswith("GUARANTOR")):
-        return None, 0.0
+    by_excel_key_index: Optional[Dict[str, Tuple[str, str]]] = None,
+) -> Tuple[Optional[str], Optional[str], float]:
+    """
+    GUARANTOR: replace leading APPLICANT prefix with GUARANTOR1 where catalogue allows.
+
+    COAPPLICANT substitution is handled in the alias pipeline via
+    _remap_applicant_putm_to_coapplicant_catalogue (not here) so APPLICANTCUSTOMER*
+    patterns resolve to COAPPLICANTn* keys correctly.
+    """
+    by_excel_key_index = by_excel_key_index or {}
+    if current_entity.startswith("COAPPLICANT"):
+        return None, None, 0.0
+    if not current_entity.startswith("GUARANTOR"):
+        return None, None, 0.0
     if "APPLICANT" not in excel_key.upper():
-        return None, 0.0
+        return None, None, 0.0
 
-    target_prefix = current_entity
-    if current_entity == "COAPPLICANT":
-        target_prefix = "COAPPLICANT1"
-    elif current_entity == "GUARANTOR":
-        target_prefix = "GUARANTOR1"
-
-    substituted = re.sub(r"(?i)applicant(?!\d)", target_prefix, excel_key)
+    target_prefix = "GUARANTOR1"
+    substituted = re.sub(r"(?i)applicant(?!\d)", target_prefix, excel_key, count=1)
     normalized_sub = normalize_basic(substituted)
+    if normalized_sub in by_excel_key_index:
+        ek, jk = by_excel_key_index[normalized_sub]
+        if process_name and not _is_excel_key_allowed_for_process(
+            field_dictionary, ek, process_name
+        ):
+            return None, None, 0.0
+        return ek, jk, -0.10
     if normalized_sub in field_dictionary_index:
-        best_ek, _ = _select_best_candidate(
+        best_ek, best_jk = _select_best_candidate(
             field_dictionary_index[normalized_sub],
             current_entity,
             None,
             process_name,
             field_dictionary,
         )
-        return best_ek, -0.10
-    return None, 0.0
+        nb = normalize_basic(best_ek)
+        if nb in by_excel_key_index:
+            ek2, jk2 = by_excel_key_index[nb]
+            if process_name and not _is_excel_key_allowed_for_process(
+                field_dictionary, ek2, process_name
+            ):
+                return None, None, 0.0
+            return ek2, jk2 or best_jk, -0.10
+    return None, None, 0.0
+
+
+def _is_coapplicant_scoped_putm_excel_key(excel_key: str) -> bool:
+    """True when excel_key clearly targets co-applicant JSON (not applicant)."""
+    ek = (excel_key or "").strip().upper()
+    if not ek:
+        return False
+    if re.match(r"^COAPPLICANT\d+", ek):
+        return True
+    if re.match(r"^LOANCOAPP\d+", ek):
+        return True
+    return False
+
+
+def _remap_putm_key_for_applicant_customer_entity(
+    entity: Optional[str],
+    excel_key: str,
+    by_excel_key_index: Dict[str, Tuple[str, str]],
+) -> Optional[Tuple[str, str]]:
+    """
+    For APPLICANT/CUSTOMER rows, map co-applicant-only PUTM keys to catalogue
+    applicant equivalents when they exist (COAPPLICANT1X -> APPLICANTX,
+    LOANCOAPPnCUSTPARAMk -> LOANAPPLICANTPARAMk).
+    """
+    ent = (entity or "").strip().upper()
+    if ent not in ("APPLICANT", "CUSTOMER"):
+        return None
+    ek = (excel_key or "").strip()
+    if not _is_coapplicant_scoped_putm_excel_key(ek):
+        return None
+
+    candidates: List[str] = []
+    if re.match(r"^COAPPLICANT\d+", ek, re.I):
+        candidates.append(re.sub(r"^COAPPLICANT\d+", "APPLICANT", ek, count=1, flags=re.I).upper())
+    m = re.match(r"^LOANCOAPP\d+CUSTPARAM(\d+)$", ek, re.I)
+    if m:
+        candidates.append(f"LOANAPPLICANTPARAM{m.group(1)}".upper())
+
+    for cand in candidates:
+        nb = normalize_basic(cand)
+        if nb in by_excel_key_index:
+            return by_excel_key_index[nb]
+    return None
 
 
 # ── Core match function ─────────────────────────────────────────────────────────
@@ -717,6 +1046,8 @@ def match_field(
     Match a single partner field to an internal excel_key.
 
     Evaluation order:
+    0.  FEE / CHARGE SEMANTICS      — fee/charge field names → excel_key FEE, entity FEE
+        (before exact/alias so charge columns are not mis-matched to unrelated keys)
     1a. EXACT MATCH (raw, field_dictionary-first)
         — normalize_basic only, no prefix stripping
         — validates candidate exists in by_excel_key before accepting
@@ -726,8 +1057,7 @@ def match_field(
     2.  ALIAS MATCH (tier 1–4)       — lookup in alias_registry.forward
     3.  DOCUMENT NAME DETECTION
     4.  DOCUMENT ID DETECTION
-    5.  FEE DETECTION
-    6.  UNMATCHED                    — hand off to LLM layer
+    5.  UNMATCHED                    — hand off to LLM layer
     """
     # ── Entity detection ──────────────────────────────────────────────────────
     if not entity:
@@ -735,6 +1065,28 @@ def match_field(
             column_category,
             field_name,
             refs["entity_routing"].get("grouping_to_entity", {})
+        )
+
+    # Fee/charge semantics first: partner names like siteVisitCharge / clearingCharges
+    # must map to the FEE bucket, not lose to a coincidental exact/alias hit.
+    if field_implies_fee_charge_semantics(field_name):
+        fl = (field_name or "").lower()
+        matched_kw = [kw for kw in FEE_KEYWORDS if kw in fl]
+        if not matched_kw:
+            matched_kw = sorted(set(_tokenize_text(field_name)) & _FEE_CHARGE_TOKENS)
+        return MatchResult(
+            partner_field=field_name,
+            column_category=column_category,
+            matched_excel_key="FEE",
+            matched_json_key=None,
+            confidence=0.90,
+            match_type=MatchType.FEE.value,
+            reasoning=(
+                "Fee detection (priority): field denotes fee/charge semantics "
+                f"({', '.join(matched_kw) if matched_kw else 'token match'}) — "
+                "mapped to FEE before generic exact/alias matching."
+            ),
+            entity="FEE",
         )
 
     field_dictionary = refs.get("field_dictionary", {})
@@ -966,12 +1318,17 @@ def match_field(
         match_type = f"alias_{tier}"
         base_confidence = _confidence_for_tier(tier)
 
-        substituted_key, conf_adjustment = _try_entity_substitution(
-            target_excel_key, entity, field_dict_index, field_dictionary, process_name,
+        substituted_key, substituted_json_key, conf_adjustment = _try_entity_substitution(
+            target_excel_key,
+            entity,
+            field_dict_index,
+            field_dictionary,
+            process_name,
+            by_excel_key_index,
         )
 
         final_excel_key = substituted_key or target_excel_key
-        final_json_key = target_json_key
+        final_json_key = substituted_json_key if substituted_key else target_json_key
         final_confidence = base_confidence + conf_adjustment
 
         alias_override = _find_category_alias_override(
@@ -984,7 +1341,84 @@ def match_field(
                 final_json_key = override_json_key
                 final_confidence = min(0.99, final_confidence + 0.02)
 
-        elif not _is_excel_key_allowed_for_process(field_dictionary, final_excel_key, process_name):
+        remap_pair = _remap_putm_key_for_applicant_customer_entity(
+            entity, final_excel_key, by_excel_key_index
+        )
+        if remap_pair:
+            final_excel_key, final_json_key = remap_pair
+
+        ent_u = (entity or "").strip().upper()
+        if ent_u.startswith("COAPPLICANT") and _is_applicant_scoped_putm_excel_key(
+            final_excel_key
+        ):
+            co_hit = _remap_applicant_putm_to_coapplicant_catalogue(
+                ent_u,
+                final_excel_key,
+                by_excel_key_index,
+                field_dict_index,
+                field_dictionary,
+                process_name,
+            )
+            if co_hit:
+                final_excel_key, final_json_key = co_hit
+                final_confidence = min(final_confidence, 0.92)
+            else:
+                gen_hit = _first_loancoapp_custparam_for_entity(
+                    ent_u, field_dictionary, process_name
+                )
+                if gen_hit:
+                    g_ek, g_jk = gen_hit
+                    return MatchResult(
+                        partner_field=field_name,
+                        column_category=column_category,
+                        matched_excel_key=g_ek,
+                        matched_json_key=g_jk,
+                        confidence=min(base_confidence, 0.72),
+                        match_type=MatchType.PARAMETER_FALLBACK.value,
+                        reasoning=(
+                            f"Alias ({tier}) target '{target_excel_key}' is applicant-scoped while "
+                            f"entity={ent_u}; no exact co-applicant catalogue key — assigned generic "
+                            f"parameter slot '{g_ek}'."
+                        ),
+                        entity=entity,
+                    )
+                return MatchResult(
+                    partner_field=field_name,
+                    column_category=column_category,
+                    matched_excel_key=None,
+                    matched_json_key=None,
+                    confidence=0.0,
+                    match_type=MatchType.UNMATCHED.value,
+                    reasoning=(
+                        f"Alias ({tier}) target '{target_excel_key}' is applicant-scoped while "
+                        f"entity={ent_u}; no co-applicant PUTM equivalent or LOANCOAPP slot in "
+                        f"catalogue."
+                    ),
+                    entity=entity,
+                )
+
+        if (
+            ent_u in ("APPLICANT", "CUSTOMER")
+            and not remap_pair
+            and _is_coapplicant_scoped_putm_excel_key(final_excel_key)
+        ):
+            return MatchResult(
+                partner_field=field_name,
+                column_category=column_category,
+                matched_excel_key=None,
+                matched_json_key=None,
+                confidence=0.0,
+                match_type=MatchType.UNMATCHED.value,
+                reasoning=(
+                    f"Alias ({tier}) target is co-applicant-only PUTM key '{final_excel_key}' "
+                    f"for entity={ent_u}; no applicant-safe equivalent in catalogue."
+                ),
+                entity=entity,
+            )
+
+        if not alias_override and not _is_excel_key_allowed_for_process(
+            field_dictionary, final_excel_key, process_name
+        ):
             equivalent = _find_process_equivalent_by_json(
                 refs, final_json_key, entity, column_category, process_name,
             )
@@ -1063,6 +1497,7 @@ def match_field(
 
     # ====== 3. DOCUMENT NAME DETECTION ======
     field_lower = field_name.lower()
+    suggests_credential = any(h in field_lower for h in CREDENTIAL_KEYWORD_HINTS)
     doc_keywords_found = [kw for kw in DOCUMENT_KEYWORDS if kw in field_lower]
     has_strong_doc_signal = any(
         kw in field_lower for kw in [
@@ -1079,7 +1514,7 @@ def match_field(
         and has_strong_doc_signal
     )
 
-    if has_doc_keyword and looks_like_filename:
+    if has_doc_keyword and looks_like_filename and not suggests_credential:
         return MatchResult(
             partner_field=field_name,
             column_category=column_category,
@@ -1098,7 +1533,7 @@ def match_field(
     # ====== 4. DOCUMENT ID DETECTION ======
     has_locator_keyword = any(kw in field_lower for kw in DOCUMENT_LOCATOR_KEYWORDS)
 
-    if has_doc_keyword and has_locator_keyword:
+    if has_doc_keyword and has_locator_keyword and not suggests_credential:
         return MatchResult(
             partner_field=field_name,
             column_category=column_category,
@@ -1114,25 +1549,35 @@ def match_field(
             entity="DOCUMENT",
         )
 
-    # ====== 5. FEE DETECTION ======
-    has_fee_keyword = any(kw in field_lower for kw in FEE_KEYWORDS)
+    # ====== 4b. CREDENTIAL + DOCUMENT/LOCATOR: bridge long names to forward alias ======
+    # Long camelCase names often fail exact alias lookup but embed a shorter alias key as a
+    # subsequence (after digit strip). Re-resolve via registry variant — no hardcoded targets.
+    if suggests_credential and has_doc_keyword and has_locator_keyword:
+        bridge_variant = _credential_alias_bridge_variant(field_name, forward_aliases)
+        if bridge_variant and normalize_basic(field_name) != normalize_basic(bridge_variant):
+            inner = match_field(
+                bridge_variant,
+                column_category,
+                entity,
+                refs,
+                process_name=process_name,
+            )
+            if inner.match_type != MatchType.UNMATCHED.value and inner.matched_excel_key:
+                return MatchResult(
+                    partner_field=field_name,
+                    column_category=column_category,
+                    matched_excel_key=inner.matched_excel_key,
+                    matched_json_key=inner.matched_json_key,
+                    confidence=min(float(inner.confidence or 0.0), 0.88),
+                    match_type=inner.match_type,
+                    reasoning=(
+                        "Credential + document/locator field; bridged to catalogue alias via "
+                        f"registry variant (long partner name). {inner.reasoning}"
+                    ),
+                    entity=inner.entity,
+                )
 
-    if has_fee_keyword:
-        return MatchResult(
-            partner_field=field_name,
-            column_category=column_category,
-            matched_excel_key="FEE",
-            matched_json_key=None,
-            confidence=0.90,
-            match_type=MatchType.FEE.value,
-            reasoning=(
-                f"Fee detection: field contains fee/charge keywords "
-                f"({', '.join(kw for kw in FEE_KEYWORDS if kw in field_lower)})"
-            ),
-            entity="FEE",
-        )
-
-    # ====== 6. UNMATCHED ======
+    # ====== 5. UNMATCHED ======
     return MatchResult(
         partner_field=field_name,
         column_category=column_category,

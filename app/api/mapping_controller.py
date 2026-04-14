@@ -177,8 +177,26 @@ async def deterministic(
     client_name: str  = Form(...),
     process_name: str = Form("COMBINED"),
     sheet_filter: str = Form(None),
+    use_loanparameter_refinement: bool = Form(
+        True,
+        description="If true and LOANPARAMETER_REFINEMENT_GATEWAY_URL is set, remap LOANPARAMETER* via PUTM LLM",
+    ),
+    use_llm_entity_classifier: bool = Form(
+        False,
+        description="If true and ENTITY_CLASSIFIER_GATEWAY_URL is set, assign entity via LLM before deterministic matching",
+    ),
     settings: Settings = Depends(get_settings),
 ):
+    # ── DEBUG: confirm settings loaded correctly ───────────────────
+    logger.info("SETTINGS_DEBUG [deterministic]: settings object id = %d", id(settings))
+    logger.info("SETTINGS_DEBUG [deterministic]: llm_gateway_url = %r", settings.llm_gateway_url)
+    logger.info("SETTINGS_DEBUG [deterministic]: loanparameter_refinement_gateway_url = %r", settings.loanparameter_refinement_gateway_url)
+    logger.info("SETTINGS_DEBUG [deterministic]: parameter_classifier_gateway_url = %r", settings.parameter_classifier_gateway_url)
+    logger.info("SETTINGS_DEBUG [deterministic]: entity_classifier_gateway_url = %r", settings.entity_classifier_gateway_url)
+    logger.info("SETTINGS_DEBUG [deterministic]: use_loanparameter_refinement (form) = %r", use_loanparameter_refinement)
+    logger.info("SETTINGS_DEBUG [deterministic]: use_llm_entity_classifier (form) = %r", use_llm_entity_classifier)
+    # ──────────────────────────────────────────────────────────────
+
     tmp = None
     try:
         tmp    = _save_upload(file)
@@ -187,8 +205,31 @@ async def deterministic(
             settings=settings,
             process_name=process_name,
             sheet_filter=sheet_filter or None,
+            client_name=client_name,
+            use_llm_entity_classifier=use_llm_entity_classifier,
         )
-        det       = result["deterministic_results"]
+        det       = result.get("deterministic_results") or []
+        fd0       = result["field_dictionary"]
+        ar0       = result["alias_registry"]
+
+        logger.info("SETTINGS_DEBUG [deterministic]: det_results count = %d", len(det))
+        lp_count = sum(1 for r in det if (r.get("matched_excel_key") or "").upper().startswith("LOANPARAMETER"))
+        logger.info("SETTINGS_DEBUG [deterministic]: LOANPARAMETER* rows = %d", lp_count)
+
+        if use_loanparameter_refinement:
+            logger.info("SETTINGS_DEBUG [deterministic]: calling refine_loanparameter_after_deterministic ...")
+            det = svc.refine_loanparameter_after_deterministic(
+                deterministic_results=det,
+                field_dictionary=fd0,
+                alias_registry=ar0,
+                settings=settings,
+                client_name=client_name,
+                process_name=process_name,
+            ) or det
+            logger.info("SETTINGS_DEBUG [deterministic]: refine returned %d rows", len(det))
+        else:
+            logger.info("SETTINGS_DEBUG [deterministic]: skipping refinement — use_loanparameter_refinement=False")
+
         unm       = result["unmatched_fields"]
         eps       = result["entity_prompts"]
         stats_raw = svc.compute_stats(det)
@@ -224,28 +265,70 @@ async def hybrid_llm(
     use_fuzzy: bool          = Form(True),
     use_embeddings: bool     = Form(False),
     use_llm: bool            = Form(True),
+    use_loanparameter_refinement: bool = Form(
+        True,
+        description="Remap deterministic LOANPARAMETER* via dedicated PUTM LLM when URL configured",
+    ),
+    use_llm_entity_classifier: bool = Form(
+        False,
+        description="If true and ENTITY_CLASSIFIER_GATEWAY_URL is set, assign entity via LLM before deterministic matching",
+    ),
     master_id: Optional[int] = Form(None),
     save_to_db: bool         = Form(False),
     skip_unmatched: bool     = Form(False),
     settings: Settings       = Depends(get_settings),
 ):
-    # Note: no db: Session param — db_writer manages its own target-DB connection
+    # ── DEBUG: confirm settings loaded correctly ───────────────────
+    logger.info("SETTINGS_DEBUG [hybrid_llm]: settings object id = %d", id(settings))
+    logger.info("SETTINGS_DEBUG [hybrid_llm]: llm_gateway_url = %r", settings.llm_gateway_url)
+    logger.info("SETTINGS_DEBUG [hybrid_llm]: loanparameter_refinement_gateway_url = %r", settings.loanparameter_refinement_gateway_url)
+    logger.info("SETTINGS_DEBUG [hybrid_llm]: parameter_classifier_gateway_url = %r", settings.parameter_classifier_gateway_url)
+    logger.info("SETTINGS_DEBUG [hybrid_llm]: entity_classifier_gateway_url = %r", settings.entity_classifier_gateway_url)
+    logger.info("SETTINGS_DEBUG [hybrid_llm]: use_loanparameter_refinement (form) = %r", use_loanparameter_refinement)
+    logger.info("SETTINGS_DEBUG [hybrid_llm]: use_llm_entity_classifier (form) = %r", use_llm_entity_classifier)
+    # ──────────────────────────────────────────────────────────────
+
     tmp = None
     try:
         tmp = _save_upload(file)
 
-        p1          = svc.run_deterministic(input_file=tmp, settings=settings, process_name=process_name)
-        det_results = p1["deterministic_results"]
+        p1          = svc.run_deterministic(
+            input_file=tmp,
+            settings=settings,
+            process_name=process_name,
+            client_name=client_name,
+            use_llm_entity_classifier=use_llm_entity_classifier,
+        )
+        det_results = p1.get("deterministic_results") or []
         unmatched   = p1["unmatched_fields"]
         ep          = p1["entity_prompts"]
         fd          = p1["field_dictionary"]
         ar          = p1["alias_registry"]
+
+        logger.info("SETTINGS_DEBUG [hybrid_llm]: det_results count = %d", len(det_results))
+        lp_count = sum(1 for r in det_results if (r.get("matched_excel_key") or "").upper().startswith("LOANPARAMETER"))
+        logger.info("SETTINGS_DEBUG [hybrid_llm]: LOANPARAMETER* rows = %d", lp_count)
+
+        if use_loanparameter_refinement:
+            logger.info("SETTINGS_DEBUG [hybrid_llm]: calling refine_loanparameter_after_deterministic ...")
+            det_results = svc.refine_loanparameter_after_deterministic(
+                deterministic_results=det_results,
+                field_dictionary=fd,
+                alias_registry=ar,
+                settings=settings,
+                client_name=client_name,
+                process_name=process_name,
+            ) or det_results
+            logger.info("SETTINGS_DEBUG [hybrid_llm]: refine returned %d rows", len(det_results))
+        else:
+            logger.info("SETTINGS_DEBUG [hybrid_llm]: skipping refinement — use_loanparameter_refinement=False")
 
         phase2, breakdown = svc.run_hybrid_llm(
             unmatched_fields=unmatched,
             field_dictionary=fd,
             alias_registry=ar,
             entity_prompts=ep,
+            deterministic_matches=det_results,
             settings=settings,
             use_fuzzy=use_fuzzy,
             use_embeddings=use_embeddings,
@@ -254,7 +337,7 @@ async def hybrid_llm(
             process_name=process_name,
         )
 
-        all_mappings = det_results + phase2
+        all_mappings = svc.merge_deterministic_with_hybrid_phase(det_results, phase2)
         all_mappings = svc.refine_parameter_buckets(
             all_mappings=all_mappings,
             settings=settings,
@@ -267,10 +350,9 @@ async def hybrid_llm(
         )
         stats_raw    = svc.compute_stats(all_mappings)
 
-        # ── persist to TARGET DB ───────────────────────────────────────────────
         if save_to_db and master_id is not None:
             try:
-                db_result = upsert_mappings(       # no db= arg
+                db_result = upsert_mappings(
                     mappings=all_mappings,
                     master_id=master_id,
                     client_name=client_name,
@@ -281,7 +363,6 @@ async def hybrid_llm(
                 logger.info(f"DB write (hybrid-llm): {db_result}")
             except Exception as db_exc:
                 logger.error(f"DB write failed (non-fatal): {db_exc}")
-        # ──────────────────────────────────────────────────────────────────────
 
         return HybridLLMResponse(
             client_name=client_name,
@@ -312,13 +393,30 @@ async def full_pipeline(
     use_fuzzy: bool      = Form(True),
     use_embeddings: bool = Form(False),
     use_llm: bool        = Form(True),
+    use_loanparameter_refinement: bool = Form(
+        True,
+        description="Remap deterministic LOANPARAMETER* via dedicated PUTM LLM when URL configured",
+    ),
+    use_llm_entity_classifier: bool = Form(
+        False,
+        description="If true and ENTITY_CLASSIFIER_GATEWAY_URL is set, assign entity via LLM before deterministic matching",
+    ),
     sheet_filter: str    = Form(None),
     master_id: int       = Form(...,   description="FK stored in master_id column of the mapping table"),
     save_to_db: bool     = Form(True,  description="Write results to GENERIC_MAPPING_TABLE in TARGET DB"),
     skip_unmatched: bool = Form(False, description="Skip rows with no matched_excel_key when writing to DB"),
     settings: Settings   = Depends(get_settings),
 ):
-    # Note: no db: Session param — db_writer manages its own target-DB connection
+    # ── DEBUG: confirm settings loaded correctly ───────────────────
+    logger.info("SETTINGS_DEBUG [full_pipeline]: settings object id = %d", id(settings))
+    logger.info("SETTINGS_DEBUG [full_pipeline]: llm_gateway_url = %r", settings.llm_gateway_url)
+    logger.info("SETTINGS_DEBUG [full_pipeline]: loanparameter_refinement_gateway_url = %r", settings.loanparameter_refinement_gateway_url)
+    logger.info("SETTINGS_DEBUG [full_pipeline]: parameter_classifier_gateway_url = %r", settings.parameter_classifier_gateway_url)
+    logger.info("SETTINGS_DEBUG [full_pipeline]: entity_classifier_gateway_url = %r", settings.entity_classifier_gateway_url)
+    logger.info("SETTINGS_DEBUG [full_pipeline]: use_loanparameter_refinement (form) = %r", use_loanparameter_refinement)
+    logger.info("SETTINGS_DEBUG [full_pipeline]: use_llm_entity_classifier (form) = %r", use_llm_entity_classifier)
+    # ──────────────────────────────────────────────────────────────
+
     tmp = None
     try:
         tmp = _save_upload(file)
@@ -329,12 +427,32 @@ async def full_pipeline(
             settings=settings,
             process_name=process_name,
             sheet_filter=sheet_filter or None,
+            client_name=client_name,
+            use_llm_entity_classifier=use_llm_entity_classifier,
         )
-        det_results = p1["deterministic_results"]
+        det_results = p1.get("deterministic_results") or []
         unmatched   = p1["unmatched_fields"]
         ep          = p1["entity_prompts"]
         fd          = p1["field_dictionary"]
         ar          = p1["alias_registry"]
+
+        logger.info("SETTINGS_DEBUG [full_pipeline]: det_results count = %d", len(det_results))
+        lp_count = sum(1 for r in det_results if (r.get("matched_excel_key") or "").upper().startswith("LOANPARAMETER"))
+        logger.info("SETTINGS_DEBUG [full_pipeline]: LOANPARAMETER* rows = %d", lp_count)
+
+        if use_loanparameter_refinement:
+            logger.info("SETTINGS_DEBUG [full_pipeline]: calling refine_loanparameter_after_deterministic ...")
+            det_results = svc.refine_loanparameter_after_deterministic(
+                deterministic_results=det_results,
+                field_dictionary=fd,
+                alias_registry=ar,
+                settings=settings,
+                client_name=client_name,
+                process_name=process_name,
+            ) or det_results
+            logger.info("SETTINGS_DEBUG [full_pipeline]: refine returned %d rows", len(det_results))
+        else:
+            logger.info("SETTINGS_DEBUG [full_pipeline]: skipping refinement — use_loanparameter_refinement=False")
 
         # ── Phase 2: hybrid + LLM ──────────────────────────────────────────────
         phase2, _ = svc.run_hybrid_llm(
@@ -342,6 +460,7 @@ async def full_pipeline(
             field_dictionary=fd,
             alias_registry=ar,
             entity_prompts=ep,
+            deterministic_matches=det_results,
             settings=settings,
             use_fuzzy=use_fuzzy,
             use_embeddings=use_embeddings,
@@ -350,7 +469,7 @@ async def full_pipeline(
             process_name=process_name,
         )
 
-        all_mappings = det_results + phase2
+        all_mappings = svc.merge_deterministic_with_hybrid_phase(det_results, phase2)
         all_mappings = svc.refine_parameter_buckets(
             all_mappings=all_mappings,
             settings=settings,
@@ -358,18 +477,6 @@ async def full_pipeline(
             process_name=process_name,
         )
 
-        # ── Persist to TARGET DB ───────────────────────────────────────────────
-        #
-        #   db_writer connects to settings.target_db_url independently.
-        #   The source-DB session (get_db) is NOT involved here.
-        #
-        #   Column mapping:
-        #     partner_field      → excel_column        (raw partner field)
-        #     matched_excel_key  → table_column_name   (must match PUTM)
-        #     json_key           → partner_api_key     (dot-path)
-        #     master_id (Form)   → master_id
-        #     entity             → ui_group            (LOAN / CUSTOMER …)
-        #
         all_mappings = svc.finalize_mappings(
             all_mappings=all_mappings,
             settings=settings,
@@ -378,7 +485,7 @@ async def full_pipeline(
         db_result = {"inserted": 0, "skipped": 0, "errors": 0}
         if save_to_db:
             try:
-                db_result = upsert_mappings(       # no db= arg
+                db_result = upsert_mappings(
                     mappings=all_mappings,
                     master_id=master_id,
                     client_name=client_name,
@@ -393,9 +500,7 @@ async def full_pipeline(
                     f"errors={db_result['errors']}"
                 )
             except Exception as db_exc:
-                # Non-fatal: ZIP is still returned even if the DB write fails
                 logger.error(f"DB write failed (non-fatal, ZIP still returned): {db_exc}")
-        # ──────────────────────────────────────────────────────────────────────
 
         # ── Build nested mapping + schema ──────────────────────────────────────
         mapping_list = [
@@ -411,7 +516,7 @@ async def full_pipeline(
         schema_result = generate_schema(builder_input)
 
         # ── Excel output ───────────────────────────────────────────────────────
-        safe_client_name = _sanitize_path_component(client_name, "client")
+        safe_client_name  = _sanitize_path_component(client_name, "client")
         safe_process_name = _sanitize_path_component(process_name, "process")
 
         out_dir    = settings.output_path / safe_client_name
@@ -450,10 +555,10 @@ async def full_pipeline(
                 "Content-Disposition": (
                     f"attachment; filename={safe_client_name}_{safe_process_name}_outputs.zip"
                 ),
-                "X-DB-Inserted":       str(db_result["inserted"]),
-                "X-DB-Skipped":        str(db_result["skipped"]),
-                "X-DB-Errors":         str(db_result["errors"]),
-                "X-Master-Id":         str(master_id),
+                "X-DB-Inserted": str(db_result["inserted"]),
+                "X-DB-Skipped":  str(db_result["skipped"]),
+                "X-DB-Errors":   str(db_result["errors"]),
+                "X-Master-Id":   str(master_id),
             },
         )
 

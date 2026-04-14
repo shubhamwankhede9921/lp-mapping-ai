@@ -42,6 +42,49 @@ def _normalize(name: str) -> str:
     return re.sub(r"[\_\s.\-]", "", name)
 
 
+def _determine_process_name(excel_key: str, process_names: list) -> str:
+    """
+    Determine the primary process_name for an excel_key.
+    
+    Rules (in order):
+    1. If process_names contains exactly one non-empty value, use it
+    2. If process_names contains both ENROLLMENT and ORIGINATION, use COMBINED
+    3. If process_names is empty/None, infer from key name:
+       - Keys containing 'vehicle' → (no specific assignment, would filter to VEHICLE_LOAN)
+       - Keys containing 'applicant' → COMBINED
+       - Keys containing 'enrollment' → ENROLLMENT
+       - Keys containing 'origination' → ORIGINATION
+       - Default → COMBINED (universal key)
+    4. Otherwise use first non-empty process name
+    """
+    key_lower = excel_key.lower()
+    
+    # If we have explicit process_names, use them
+    if process_names and len(process_names) > 0:
+        # Filter out empty/None values
+        valid_processes = [p for p in process_names if p and p.strip()]
+        if len(valid_processes) == 1:
+            return valid_processes[0]
+        if len(valid_processes) > 1:
+            # If it contains both ENROLLMENT and ORIGINATION, it's COMBINED
+            process_set = set(p.upper() for p in valid_processes)
+            if "ENROLLMENT" in process_set and "ORIGINATION" in process_set:
+                return "COMBINED"
+            # Return the first one
+            return valid_processes[0]
+    
+    # Infer from key name
+    if "applicant" in key_lower:
+        return "COMBINED"
+    if "enrollment" in key_lower:
+        return "ENROLLMENT"
+    if "origination" in key_lower:
+        return "ORIGINATION"
+    
+    # Default to COMBINED (universal key)
+    return "COMBINED"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # FieldDictionaryBuilder  (from putm data)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -130,16 +173,23 @@ class FieldDictionaryBuilder:
                 )
 
             if excel_key not in by_excel_key:
+                collected_processes = [process] if process else []
+                primary_process = _determine_process_name(excel_key, collected_processes)
                 by_excel_key[excel_key] = {
                     "json_key": json_key, "role": role,
                     "description": desc, "example": example,
-                    "process_names": [process] if process else [],
+                    "process_name": primary_process,
+                    "process_names": collected_processes,
                 }
                 all_excel_keys.append(excel_key)
             elif process:
                 process_names = by_excel_key[excel_key].setdefault("process_names", [])
                 if process not in process_names:
                     process_names.append(process)
+                # Update primary process_name with expanded process list
+                by_excel_key[excel_key]["process_name"] = _determine_process_name(
+                    excel_key, process_names
+                )
 
         by_role = {k: sorted(v, key=lambda x: x["excel_key"]) for k, v in sorted(by_role.items())}
         by_process = {k: sorted(v, key=lambda x: x["excel_key"]) for k, v in sorted(by_process.items())}
