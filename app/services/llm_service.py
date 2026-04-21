@@ -608,6 +608,8 @@ class LLMService:
                     partner_field,
                 )
                 continue
+            if bucket == "LOANAPPLICANTPARAM":
+                bucket = "LOANPARAMETER"
             try:
                 confidence = float(confidence_str.strip())
             except ValueError:
@@ -718,6 +720,7 @@ class LLMService:
                 client_name=entity_prompt.get("client_name", ""),
                 process_name=entity_prompt.get("process_name", ""),
                 pipeline_context_payload=entity_prompt.get("pipeline_context_payload"),
+                mapping_policy=entity_prompt.get("mapping_policy"),
             )
             try:
                 mapping_dict = self._send(rendered)
@@ -753,6 +756,9 @@ class LLMService:
     def classify_parameter_buckets(self, prompt_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Single gateway call to classify rows into LOANPARAMETER vs LOANAPPLICANTPARAM.
+
+        LOANAPPLICANTPARAM responses are coerced to LOANPARAMETER so the LLM never
+        assigns applicant-parameter buckets via this path.
         """
         if not self.parameter_classifier_url:
             logger.info("Parameter classifier URL not configured — skipping classifier step")
@@ -780,6 +786,9 @@ class LLMService:
         """
         One gateway call per entity group to the LOANPARAMETER refinement URL
         (same auth token as main LLM). Parses pipe-delimited responses like map_fields.
+
+        ``rendered_prompt`` is JSON (template variables only); the gateway merges with the
+        Dvara/Langfuse prompt — instructions are not duplicated in this service.
         """
         if not self.loanparameter_refinement_url:
             logger.info("loanparameter_refinement_url not configured — skipping")

@@ -318,142 +318,39 @@ def filter_no_mapping_required(mappings):
     return filtered
 
 
-LOAN_LEVEL_FIELDS = {
-    "irr", "iir", "foir", "ltv", "loantovalueratio", "loan_to_value",
-    "marginmoney", "margin_money", "downpayment", "down_payment",
-    "schemename", "scheme_name", "schemeid", "scheme_id", "schemecode",
-    "subproduct", "sub_product", "subproductcategory",
-    "reduceemistatus", "addchargesstatus", "addlsistatus", "lsiamount",
-    "lsiamt", "reducedemi",
-}
-
-CUSTOMER_PARAM_CATEGORY_HINTS = (
-    "customer",
-    "applicant",
-    "coapplicant",
-    "co applicant",
-    "borrower",
-    "personal",
-    "employment",
-    "income",
-    "bank",
-    "bureau",
-    "kyc",
-    "address",
-    "reference",
-    "demographic",
-)
-
-LOAN_LEVEL_CATEGORY_HINTS = (
-    "loan",
-    "disbursement",
-    "repayment",
-    "emi",
-    "pricing",
-    "sanction",
-    "scheme",
-    "product",
-    "facility",
-)
-
-
-def _normalize_hint_text(value):
-    if not value:
-        return ""
-    return re.sub(r"[^a-z0-9]+", " ", value.strip().lower()).strip()
-
-
-def _is_customer_related_loan_parameter(mapping):
-    entity = (mapping.get("entity") or "").upper()
-    category = _normalize_hint_text(
-        mapping.get("column_category") or mapping.get("category") or ""
-    )
-    field = _normalize_hint_text(mapping.get("partner_field") or "")
-    compact_field = field.replace(" ", "")
-
-    if entity in ("APPLICANT", "CUSTOMER", "COAPPLICANT", "COAPPLICANT1", "COAPPLICANT2", "COAPPLICANT3", "COAPPLICANT4"):
-        return compact_field not in LOAN_LEVEL_FIELDS
-
-    if any(hint in category for hint in CUSTOMER_PARAM_CATEGORY_HINTS):
-        return compact_field not in LOAN_LEVEL_FIELDS
-
-    if (
-        entity == "LOAN"
-        and any(hint in category for hint in LOAN_LEVEL_CATEGORY_HINTS)
-        and any(hint in field for hint in CUSTOMER_PARAM_CATEGORY_HINTS)
-    ):
-        return True
-
-    return False
-
-
-def _finalize_coapplicant_custparam_base(entity: str):
-    """Unnumbered LOANCOAPP{n}CUSTPARAM for co-applicant custom params (matches match_context)."""
-    e = (entity or "").strip().upper()
-    if not e.startswith("COAPPLICANT"):
-        return None
-    if e == "COAPPLICANT":
-        return "LOANCOAPP1CUSTPARAM"
-    m = re.match(r"COAPPLICANT(\d+)$", e)
-    if m:
-        return f"LOANCOAPP{int(m.group(1))}CUSTPARAM"
-    return "LOANCOAPP1CUSTPARAM"
-
-
 def route_customer_params(mappings):
-    """Route parameter fallbacks to customer, fee, loan, or co-applicant PUTM buckets."""
-    total_loan_parameter_candidates = 0
-    rerouted_customer = 0
-    rerouted_coapp = 0
+    """
+    Keep generic LOANPARAMETER as LOANPARAMETER — do not segregate into
+    LOANAPPLICANTPARAM or LOANCOAPP{n}CUSTPARAM by entity/category.
+
+    Still maps LOANPARAMETER → FEE when the row entity is FEE (fee rows are not
+    loan-parameter buckets).
+    """
+    total_loan_parameter = 0
     rerouted_fee = 0
-    kept_loan_level = 0
+    kept_loan = 0
 
     for mapping in mappings:
         excel_key = mapping.get("matched_excel_key", "")
         entity = (mapping.get("entity") or "").upper()
 
         if excel_key == "LOANPARAMETER" and entity == "FEE":
-            total_loan_parameter_candidates += 1
+            total_loan_parameter += 1
             mapping["matched_excel_key"] = "FEE"
             rerouted_fee += 1
         elif excel_key == "LOANPARAMETER":
-            total_loan_parameter_candidates += 1
-            if _is_customer_related_loan_parameter(mapping):
-                co_base = _finalize_coapplicant_custparam_base(entity)
-                if co_base:
-                    mapping["matched_excel_key"] = co_base
-                    rerouted_coapp += 1
-                else:
-                    mapping["matched_excel_key"] = "LOANAPPLICANTPARAM"
-                    rerouted_customer += 1
-            else:
-                kept_loan_level += 1
+            total_loan_parameter += 1
+            kept_loan += 1
 
-    if total_loan_parameter_candidates > 0:
+    if total_loan_parameter > 0:
         print(
             "  LOANPARAMETER routing summary: "
-            f"total={total_loan_parameter_candidates}, "
-            f"converted_to_LOANAPPLICANTPARAM={rerouted_customer}, "
-            f"converted_to_LOANCOAPP_CUSTPARAM={rerouted_coapp}, "
+            f"total={total_loan_parameter}, "
             f"rerouted_to_FEE={rerouted_fee}, "
-            f"kept_as_LOANPARAMETER={kept_loan_level}"
-        )
-    if rerouted_customer > 0:
-        print(
-            f"  Rerouted {rerouted_customer} customer-related LOANPARAMETER fields "
-            "to LOANAPPLICANTPARAM"
-        )
-    if rerouted_coapp > 0:
-        print(
-            f"  Rerouted {rerouted_coapp} co-applicant LOANPARAMETER fields "
-            "to LOANCOAPP*CUSTPARAM"
+            f"kept_as_LOANPARAMETER={kept_loan}"
         )
     if rerouted_fee > 0:
         print(f"  Rerouted {rerouted_fee} FEE-entity fields to FEE")
-    if kept_loan_level > 0:
-        print(
-            f"  Kept {kept_loan_level} loan-level fields as LOANPARAMETER"
-        )
     return mappings
 
 

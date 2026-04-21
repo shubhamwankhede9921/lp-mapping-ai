@@ -9,11 +9,10 @@ Handles:
 
 Changelog
 ---------
-Fix 1 – moved_by_collision_resolver flag
-    When the collision resolver displaces a loser field to LOANPARAMETER,
-    _reroute_parameter_base_key must NOT re-promote it to LOANAPPLICANTPARAM
-    even when the field's entity is APPLICANT.  The new
-    `moved_by_collision_resolver` flag on MatchResult is the precise guard.
+Fix 1 – collision losers stay sequential LOANPARAMETER
+    Losers get base LOANPARAMETER with match_type duplicate_excel_key_displaced;
+    `_reroute_parameter_base_key` no longer promotes those rows to applicant /
+    co-applicant parameter buckets.  `moved_by_collision_resolver` is still set.
 
 Fix 2 – same-json_key collision bypass
     Two partner fields that collide on the same excel key but resolve to the
@@ -27,8 +26,9 @@ Fix 2 – same-json_key collision bypass
 Fix 3 – duplicate excel key: displace losers (non-special keys only)
     For non-special excel keys: if the same key appears more than once *for
     the same (column_category, entity)*, the highest-confidence entry keeps
-    the key; lower-confidence rows are moved to a fresh generic LOANPARAMETER
-    slot (moved_by_collision_resolver=True). Rows that share an excel key
+    the key; lower-confidence rows are moved to a fresh generic parameter
+    slot (base LOANPARAMETER, then numbered; moved_by_collision_resolver=True).
+    Rows that share an excel key
     but differ in column_category or entity are not treated as duplicates —
     they all keep the key. Special fields — DOCUMENTNAME, DOCUMENTID, FEE,
     LOANPARAMETER, LOANAPPLICANTPARAM and CUSTOMERPARAM(ETER) — are never
@@ -40,26 +40,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional, Union
 import re
-
-
-def _coapplicant_slot_from_entity(entity: Optional[str]) -> Optional[int]:
-    """Co-applicant index for LOANCOAPP{n}CUSTPARAM* (aligned with match_context.coapplicant_slot_from_entity)."""
-    e = (entity or "").strip().upper()
-    if not e.startswith("COAPPLICANT"):
-        return None
-    if e == "COAPPLICANT":
-        return 1
-    m = re.match(r"COAPPLICANT(\d+)$", e)
-    if m:
-        return int(m.group(1))
-    return 1
-
-
-def _coapplicant_custparam_base(entity: Optional[str]) -> Optional[str]:
-    slot = _coapplicant_slot_from_entity(entity)
-    if slot is None:
-        return None
-    return f"LOANCOAPP{slot}CUSTPARAM"
 
 
 @dataclass
@@ -78,8 +58,8 @@ class MatchResult:
     llm_change_reason: str = ""
     llm_param_bucket_reason: str = ""
     needs_review: bool = False
-    # Set to True exclusively by resolve_duplicate_excel_keys() so that
-    # _reroute_parameter_base_key() never re-promotes the field.
+    # Set by resolve_duplicate_excel_keys() so downstream can tell the row
+    # lost a direct excel_key to a higher-confidence sibling.
     moved_by_collision_resolver: bool = False
 
 
@@ -111,43 +91,6 @@ class PostProcessor:
         "LOANAPPLICANTPARAM": "LOANAPPLICANTPARAM",
     }
 
-    CUSTOMER_PARAM_CATEGORY_HINTS = (
-        "customer",
-        "applicant",
-        "coapplicant",
-        "co applicant",
-        "borrower",
-        "personal",
-        "employment",
-        "income",
-        "bank",
-        "bureau",
-        "kyc",
-        "address",
-        "reference",
-        "demographic",
-    )
-
-    LOAN_LEVEL_CATEGORY_HINTS = (
-        "loan",
-        "disbursement",
-        "repayment",
-        "emi",
-        "pricing",
-        "sanction",
-        "scheme",
-        "product",
-        "facility",
-    )
-
-    LOAN_LEVEL_FIELD_HINTS = {
-        "irr", "iir", "foir", "ltv", "loantovalue", "marginmoney",
-        "downpayment", "schemename", "schemeid", "schemecode",
-        "subproduct", "reducedemi", "tenure", "interest", "apr",
-        "loanamount", "sanctionamount", "approvedamount", "emiamount",
-        "disbursementamount", "repaymentfrequency",
-    }
-
     def __init__(self, field_dictionary: dict):
         self.field_dict = field_dictionary
         self.by_excel_key = (
@@ -175,7 +118,7 @@ class PostProcessor:
         - DOCUMENTNAME, DOCUMENTID, FEE, LOANPARAMETER, CUSTOMERPARAM(ETER),
           and LOANAPPLICANTPARAM are always renumbered 1, 2, 3 ...
         - If multiple partner fields map to the same non-special excel key,
-          losers are displaced to LOANPARAMETER* (see resolve_duplicate_excel_keys).
+          losers are displaced to generic parameter slots (see resolve_duplicate_excel_keys).
         """
         normalized: list[MatchResult] = []
         for item in results:
@@ -209,8 +152,7 @@ class PostProcessor:
         normalized = self.resolve_duplicate_excel_keys(normalized)
 
         processed: list[dict] = []
-        converted_loan_params = 0
-        kept_loan_params = 0
+        loanparameter_base_numbered = 0
 
         for result in normalized:
             original_base_key = self._get_base_key(result.matched_excel_key)
@@ -219,10 +161,7 @@ class PostProcessor:
             coapp_custparam_base = self._is_loancoapp_custparam_unnumbered_base(base_key)
 
             if original_base_key == "LOANPARAMETER":
-                if base_key == "LOANAPPLICANTPARAM" or coapp_custparam_base:
-                    converted_loan_params += 1
-                else:
-                    kept_loan_params += 1
+                loanparameter_base_numbered += 1
 
             if base_key in self.SPECIAL_FIELDS or coapp_custparam_base:
                 if base_key in self.SEQUENTIAL_RENUMBER_FIELDS or coapp_custparam_base:
@@ -268,11 +207,10 @@ class PostProcessor:
                     }
                 )
 
-        if converted_loan_params or kept_loan_params:
+        if loanparameter_base_numbered:
             print(
-                "PostProcessor parameter routing: "
-                f"converted LOANPARAMETER -> LOANAPPLICANTPARAM / LOANCOAPP*CUSTPARAM = {converted_loan_params}, "
-                f"kept as LOANPARAMETER = {kept_loan_params}"
+                "PostProcessor: LOANPARAMETER*n rows (no entity promotion to applicant/co-app param): "
+                f"{loanparameter_base_numbered}"
             )
 
         return processed
@@ -288,7 +226,8 @@ class PostProcessor:
         For non-special excel keys only: if the same excel key appears more
         than once *within the same (column_category, entity)*, keep the
         highest-confidence entry on that key and move every other row in that
-        group to a generic LOANPARAMETER bucket (numbered later). Two rows with
+        group to a generic parameter bucket (base LOANPARAMETER, then numbered).
+        Two rows with
         the same excel key but different column_category or entity are not
         considered duplicates and are left unchanged.
 
@@ -305,9 +244,21 @@ class PostProcessor:
            column_category and entity:
            a. Keep the highest-confidence entry (winner) unchanged.
            b. Each lower-confidence entry stays in the list but is displaced
-              to matched_excel_key=\"LOANPARAMETER\" with
-              moved_by_collision_resolver=True (ties: first occurrence wins).
+              to base matched_excel_key=\"LOANPARAMETER\" (then numbered)
+              with moved_by_collision_resolver=True (ties: first occurrence wins).
            c. Displaced rows are flagged needs_review=True.
+
+        Customizing duplicate handling
+        -------------------------------
+        - To treat collisions under a *finer* grain than (category, entity),
+          extend ``composite`` (e.g. include normalized ``partner_field`` family
+          or sheet name) so fewer unrelated columns compete for one key.
+        - To *avoid* displacing when every colliding row resolves to the same
+          ``json_key`` (duplicate column labels for one payload slot), add an
+          early ``continue`` for that group before displacing losers — see
+          module docstring "Fix 2 – same-json_key collision bypass".
+        - To disable displacement entirely, skip calling this method from
+          ``process_results`` or gate it behind a settings flag.
 
         Parameters
         ----------
@@ -362,7 +313,7 @@ class PostProcessor:
                 f"has {len(entries)} duplicate entries. "
                 f"Winner (kept): '{winner.partner_field}' "
                 f"(confidence={winner.confidence:.2f}). "
-                f"Displaced to LOANPARAMETER: {loser_fields}"
+                f"Displaced to generic parameter bucket: {loser_fields}"
             )
 
             for loser_pos, loser in losers:
@@ -370,7 +321,7 @@ class PostProcessor:
                 bump = (
                     f"Duplicate excel_key '{excel_key}': lower confidence than "
                     f"'{winner.partner_field}' ({winner.confidence:.2f}); "
-                    "displaced to generic LOANPARAMETER."
+                    "displaced from that key to the next sequential LOANPARAMETER*n slot."
                 )
                 reasoning = f"{prev_reason}; {bump}" if prev_reason else bump
                 updated[loser_pos] = MatchResult(
@@ -415,58 +366,11 @@ class PostProcessor:
             return ""
         return re.sub(r"[^a-z0-9]+", " ", value.strip().lower()).strip()
 
-    def _is_customer_related_parameter(self, result: MatchResult) -> bool:
-        entity = (result.entity or "").upper()
-        category = self._normalize_text(result.column_category)
-        field = self._normalize_text(result.partner_field)
-        compact_field = field.replace(" ", "")
-
-        if entity in {
-            "APPLICANT", "CUSTOMER",
-            "COAPPLICANT", "COAPPLICANT1", "COAPPLICANT2",
-            "COAPPLICANT3", "COAPPLICANT4",
-        }:
-            if compact_field in self.LOAN_LEVEL_FIELD_HINTS:
-                return False
-            return True
-
-        if any(hint in category for hint in self.CUSTOMER_PARAM_CATEGORY_HINTS):
-            if compact_field in self.LOAN_LEVEL_FIELD_HINTS:
-                return False
-            return True
-
-        if (
-            entity == "LOAN"
-            and any(hint in category for hint in self.LOAN_LEVEL_CATEGORY_HINTS)
-            and any(hint in field for hint in self.CUSTOMER_PARAM_CATEGORY_HINTS)
-        ):
-            return True
-
-        return False
-
     def _reroute_parameter_base_key(self, result: MatchResult) -> str:
-        base_key = self._get_base_key(result.matched_excel_key)
-        if base_key != "LOANPARAMETER":
-            return result.matched_excel_key
-
-        # Fix 1: never reroute a field placed here by the collision resolver.
-        if result.moved_by_collision_resolver:
-            return result.matched_excel_key  # stay as LOANPARAMETER
-
-        if result.match_type == "llm_parameter_bucket":
-            if (
-                self._get_base_key(result.matched_excel_key) == "LOANPARAMETER"
-                and self._is_customer_related_parameter(result)
-            ):
-                co_base = _coapplicant_custparam_base(result.entity)
-                if co_base:
-                    return co_base
-            return result.matched_excel_key
-        if self._is_customer_related_parameter(result):
-            co_base = _coapplicant_custparam_base(result.entity)
-            if co_base:
-                return co_base
-            return "LOANAPPLICANTPARAM"
+        """
+        LOANPARAMETER*n stays loan-level only. No promotion to LOANAPPLICANTPARAM
+        or LOANCOAPP*CUSTPARAM by entity (downstream consumers expect generic buckets).
+        """
         return result.matched_excel_key
 
     def _is_loancoapp_custparam_unnumbered_base(self, base_key: str) -> bool:

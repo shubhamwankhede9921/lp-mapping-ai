@@ -32,12 +32,22 @@ def normalize_field(text: str) -> str:
     """
     Lowercase + strip separators + strip entity prefixes.
     Used for alias registry lookup.
+
+    Must stay aligned with matching_engine.normalize_field for the loanamount case:
+    stripping the `loan` prefix from "loanamount" must not collapse to "amount",
+    or lookups hit the generic forward alias `amount` → DISBURSEMENTAMOUNT instead
+    of `loanamount` → LOANAMT.
     """
     if not text:
         return ""
     text = text.lower()
     text = _SEPARATORS.sub("", text)
+    before_entity_prefixes = text
     text = _ENTITY_PREFIXES.sub("", text)
+    if text == "amount" and "loanamount" in before_entity_prefixes:
+        return "loanamount"
+    if before_entity_prefixes == "loanamount":
+        return "loanamount"
     return text
 
 

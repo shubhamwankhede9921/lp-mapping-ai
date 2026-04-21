@@ -7,7 +7,8 @@ Core matching layer that maps partner fields to internal excel_keys without usin
 Loads reference files (field_dictionary, alias_registry, entity_routing) and evaluates
 fields in strict priority order: fee/charge semantics (entity FEE, excel_key FEE) →
 exact match (raw) → exact match (prefix-stripped) →
-alias tiers (entity-aware for COAPPLICANT vs applicant-scoped PUTM keys) → document
+alias tiers (entity-aware for COAPPLICANT vs applicant-scoped PUTM keys; generic
+fallback uses LOANPARAMETER* buckets) → document
 detection → document ID detection → unmatched.
 
 Usage:
@@ -30,7 +31,7 @@ import re
 import sys
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
-from typing import Optional, Dict, List, Any, Tuple
+from typing import Optional, Dict, List, Any, Tuple, Set
 from enum import Enum
 
 
@@ -213,6 +214,42 @@ ENTITY_CATEGORY_HINTS = {
     "LOAN": ("loan", "disbursement", "repayment", "emi", "interest", "vehicle"),
     "APPLICANT": ("applicant", "customer", "borrower"),
 }
+
+# English month tokens for calendar-style UI groupings (not hardcoded to one date).
+_MONTH_HEADING = (
+    r"(?:jan[a-z]*|feb[a-z]*|mar[a-z]*|apr[a-z]*|may|jun[a-z]*|jul[a-z]*|"
+    r"aug[a-z]*|sep[a-z]*|oct[a-z]*|nov[a-z]*|dec[a-z]*)"
+)
+
+
+def category_looks_like_calendar_heading(column_category: Optional[str]) -> bool:
+    """
+    True when a partner sheet/section label looks like a dated or calendar heading
+    rather than a stable product grouping (so we route to OTHER instead of
+    mis-inferring from digits). Covers e.g. "10th June", "1st Jan", "June 15",
+    "2024-06-10" without hardcoding specific dates in entity_routing.json.
+    """
+    if not column_category or not str(column_category).strip():
+        return False
+    s = str(column_category).strip().lower()
+    # Ordinal day + month: 10th june, 1st january, 03-mar
+    if re.search(
+        rf"\b\d{{1,2}}(?:st|nd|rd|th)?\s*[-/]?\s*{_MONTH_HEADING}\b",
+        s,
+        re.I,
+    ):
+        return True
+    # Month + day: june 10, january 1st
+    if re.search(
+        rf"\b{_MONTH_HEADING}\s+\d{{1,2}}(?:st|nd|rd|th)?\b",
+        s,
+        re.I,
+    ):
+        return True
+    # ISO-like date used as section title only (whole label)
+    if re.fullmatch(r"\d{4}[-/]\d{1,2}[-/]\d{1,2}", s):
+        return True
+    return False
 
 # Token hits (camelCase / PascalCase) for fee/charge semantics — avoids missing
 # `\bcharge\b` when "Charge" is glued to another word (e.g. siteVisitCharge).
@@ -405,7 +442,7 @@ def normalize_basic(field_name: str) -> str:
     if not field_name:
         return ""
     normalized = field_name.lower()
-    normalized = re.sub(r'[_\s\.\-\'\(\)]', '', normalized)
+    normalized = re.sub(r'[_\s\.\-\'\(\)/\u2026…]', '', normalized)
     return normalized
 
 
@@ -423,7 +460,8 @@ def normalize_field(field_name: str) -> str:
     if not field_name:
         return ""
     normalized = field_name.lower()
-    normalized = re.sub(r'[_\s\.\-\'\(\)]', '', normalized)
+    normalized = re.sub(r'[_\s\.\-\'\(\)/\u2026…]', '', normalized)
+    before_entity_prefixes = normalized
     prefixes = [
         r"^applicant",
         r"^coapplicant\d*",
@@ -435,6 +473,14 @@ def normalize_field(field_name: str) -> str:
     ]
     for prefix in prefixes:
         normalized = re.sub(prefix, '', normalized, flags=re.IGNORECASE)
+    # "LOAN AMOUNT" / LOAN_AMOUNT → loanamount → ^loan strip leaves "amount", which
+    # incorrectly hits the generic alias `amount` → DISBURSEMENTAMOUNT. Same for
+    # "APPLICANT LOAN AMOUNT" → applicantloanamount → … → "amount".
+    # Keep the canonical alias key so forward["loanamount"] → LOANAMT applies.
+    if normalized == "amount" and "loanamount" in before_entity_prefixes:
+        return "loanamount"
+    if before_entity_prefixes == "loanamount":
+        return "loanamount"
     return normalized
 
 
@@ -442,6 +488,7 @@ def _canonicalize_alias_key(value: Optional[str]) -> str:
     normalized = normalize_field(value or "")
     if not normalized:
         return ""
+    normalized = re.sub(r"distric(?!t)", "district", normalized)
     normalized = normalized.replace("aadhaar", "aadhar")
     normalized = normalized.replace("number", "no")
     normalized = normalized.replace("num", "no")
@@ -591,6 +638,9 @@ def detect_entity(
         }
         if normalized_category in normalized_routing:
             return normalized_routing[normalized_category]
+        # Ad-hoc dated section titles (e.g. "10th June") — not listed in grouping_to_entity
+        if category_looks_like_calendar_heading(column_category):
+            return "OTHER"
         for entity_name, hints in ENTITY_CATEGORY_HINTS.items():
             if any(hint in normalized_category for hint in hints):
                 return entity_name
@@ -640,7 +690,35 @@ def load_references(references_dir: str) -> Dict[str, Any]:
             raise json.JSONDecodeError(
                 f"Invalid JSON in {filename}: {e.msg}", e.doc, e.pos
             )
+
+    # Optional policy file used by post-processing / LLM prompting.
+    policy_path = ref_path / "mapping_policy.json"
+    if policy_path.exists():
+        try:
+            with open(policy_path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            references["mapping_policy"] = raw if isinstance(raw, dict) else {}
+        except json.JSONDecodeError:
+            references["mapping_policy"] = {}
+    else:
+        references["mapping_policy"] = {}
     return references
+
+
+def structured_fee_putm_bases_from_refs(refs: Dict[str, Any]) -> "frozenset[str]":
+    """
+    Return the set of base excel_keys that represent structured fee PUTM catalogue
+    rows (i.e. specific fee leaves we should NOT collapse to generic 'FEE').
+
+    Source of truth is references['mapping_policy']['structured_fee_putm_base_keys'].
+    Returns an empty set if the policy is missing.
+    """
+    mp = (refs or {}).get("mapping_policy") or {}
+    keys = mp.get("structured_fee_putm_base_keys") or []
+    if not isinstance(keys, list):
+        return frozenset()
+    normalized = {str(k).strip().upper() for k in keys if str(k).strip()}
+    return frozenset(normalized)
 
 
 # ── Index builders ─────────────────────────────────────────────────────────────
@@ -908,31 +986,35 @@ def _remap_applicant_putm_to_coapplicant_catalogue(
     return None
 
 
-def _first_loancoapp_custparam_for_entity(
-    current_entity: str,
+def _next_sequential_loanparameter_from_catalogue(
     field_dictionary: Dict[str, Any],
     process_name: Optional[str],
+    used_indices: Set[int],
 ) -> Optional[Tuple[str, str]]:
-    """First numbered LOANCOAPP{n}CUSTPARAM* in catalogue for this co-applicant slot."""
-    if not (current_entity or "").strip().upper().startswith("COAPPLICANT"):
-        return None
-    n = _coapplicant_slot_index(current_entity)
-    prefix = f"LOANCOAPP{n}CUSTPARAM"
+    """
+    Next unused ``LOANPARAMETER{n}`` present in the field dictionary (process-filtered).
+    Mutates ``used_indices`` when a slot is claimed. Shared across ``match_batch`` so
+    multiple fallback rows get distinct buckets.
+    """
     by_ek = field_dictionary.get("by_excel_key") or {}
-
-    def _tail_num(ek: str) -> int:
-        m = re.search(r"(\d+)$", ek)
-        return int(m.group(1)) if m else 0
-
-    keys = sorted(
-        (k for k in by_ek if k.upper().startswith(prefix)),
-        key=_tail_num,
-    )
-    for ek in keys:
+    candidates: List[Tuple[int, str]] = []
+    for ek in by_ek:
+        if not ek or not isinstance(ek, str):
+            continue
+        m = re.fullmatch(r"(?i)LOANPARAMETER(\d+)", ek.strip())
+        if not m:
+            continue
+        n = int(m.group(1))
         if process_name and not _is_excel_key_allowed_for_process(
             field_dictionary, ek, process_name
         ):
             continue
+        candidates.append((n, ek))
+    candidates.sort(key=lambda t: t[0])
+    for n, ek in candidates:
+        if n in used_indices:
+            continue
+        used_indices.add(n)
         jk = (by_ek.get(ek) or {}).get("json_key") or ""
         return ek, jk
     return None
@@ -995,7 +1077,10 @@ def _is_coapplicant_scoped_putm_excel_key(excel_key: str) -> bool:
     ek = (excel_key or "").strip().upper()
     if not ek:
         return False
-    if re.match(r"^COAPPLICANT\d+", ek):
+    # Slot keys like COAPPLICANT1FIRSTNAME and legacy COAPPLICANTADDITIONALKYC* both
+    # target co-applicant payloads. A digit must not be required immediately after
+    # the word COAPPLICANT, or ADDITIONAL* keys slip past guards as "neutral".
+    if ek.startswith("COAPPLICANT"):
         return True
     if re.match(r"^LOANCOAPP\d+", ek):
         return True
@@ -1022,6 +1107,9 @@ def _remap_putm_key_for_applicant_customer_entity(
     candidates: List[str] = []
     if re.match(r"^COAPPLICANT\d+", ek, re.I):
         candidates.append(re.sub(r"^COAPPLICANT\d+", "APPLICANT", ek, count=1, flags=re.I).upper())
+    elif re.match(r"^COAPPLICANT", ek, re.I):
+        # e.g. COAPPLICANTADDITIONALKYC1NUMBER → APPLICANTADDITIONALKYC1NUMBER
+        candidates.append(re.sub(r"^COAPPLICANT", "APPLICANT", ek, count=1, flags=re.I).upper())
     m = re.match(r"^LOANCOAPP\d+CUSTPARAM(\d+)$", ek, re.I)
     if m:
         candidates.append(f"LOANAPPLICANTPARAM{m.group(1)}".upper())
@@ -1033,6 +1121,54 @@ def _remap_putm_key_for_applicant_customer_entity(
     return None
 
 
+def _alias_forward_key_candidates(normalized_field: str) -> List[str]:
+    """
+    Ordered keys to try against alias_registry.forward. The first key that exists
+    wins. Handles common partner typos and long UI labels that normalize to
+    non-canonical strings (e.g. DISTRIC → DISTRICT, FOIR% → foir).
+    """
+    if not normalized_field:
+        return []
+    seen: set = set()
+    out: List[str] = []
+
+    def _add(x: str) -> None:
+        if x and x not in seen:
+            seen.add(x)
+            out.append(x)
+
+    nf = normalized_field
+    _add(nf)
+    fixed_dist = re.sub(r"distric(?!t)", "district", nf)
+    _add(fixed_dist)
+    if re.fullmatch(r"foir%+", nf):
+        _add("foir")
+    if nf.startswith("%"):
+        _add(nf.lstrip("%"))
+    if "ownedby" in nf and "woman" in nf:
+        _add("ownedbywomen")
+    if nf == "officedistrict":
+        _add("officeaddressdetailsdistrict")
+    if nf.startswith("type") and any(
+        k in nf
+        for k in ("proprietor", "firm", "ltd", "pvt", "llp", "partnership", "company")
+    ):
+        _add("businesstype")
+    if "woman" in nf and any(
+        k in nf
+        for k in (
+            "ceo",
+            "coo",
+            "president",
+            "director",
+            "vicepresident",
+            "vice",
+        )
+    ):
+        _add("womenleadershipcount")
+    return out
+
+
 # ── Core match function ─────────────────────────────────────────────────────────
 
 def match_field(
@@ -1041,6 +1177,7 @@ def match_field(
     entity: Optional[str],
     refs: Dict[str, Any],
     process_name: Optional[str] = None,
+    loanparameter_used_indices: Optional[Set[int]] = None,
 ) -> MatchResult:
     """
     Match a single partner field to an internal excel_key.
@@ -1067,6 +1204,59 @@ def match_field(
             refs["entity_routing"].get("grouping_to_entity", {})
         )
 
+    field_dictionary = refs.get("field_dictionary", {})
+    alias_registry = refs.get("alias_registry", {})
+    lp_used: Set[int] = (
+        loanparameter_used_indices if loanparameter_used_indices is not None else set()
+    )
+
+    # Build role-based index (all processes)
+    field_dict_index = _build_field_dict_index(field_dictionary)
+
+    # Build authoritative by_excel_key indexes for validation
+    # These are the ground truth — only genuine internal excel_keys appear here
+    by_excel_key_index = _build_by_excel_key_index(field_dictionary)
+    by_excel_key_process_index = _build_process_by_excel_key_index(field_dictionary, process_name)
+
+    # Build process-scoped role index
+    process_field_dict_index = _build_process_field_dict_index(field_dictionary, process_name)
+
+    # Normalizations used throughout matching.
+    basic_normalized = normalize_basic(field_name)
+    normalized_field = normalize_field(field_name)
+
+    # ====== 0. STRUCTURED FEE CATALOGUE (policy) — before generic fee bucket/aliases ======
+    #
+    # Some partner headers are human-readable ("Processing Fee") and end up matching
+    # an alias like `processingfee` which may incorrectly point to a pricing % field.
+    # If the mapping policy declares a concrete structured fee base key for this name,
+    # treat it as an authoritative match.
+    fee_bases = structured_fee_putm_bases_from_refs(refs)
+    if fee_bases:
+        fee_base_by_norm = {normalize_basic(k): k for k in fee_bases}
+        fee_base = fee_base_by_norm.get(basic_normalized) or fee_base_by_norm.get(normalized_field)
+        if fee_base:
+            # Validate against authoritative by_excel_key, and respect process scope if provided.
+            candidate = _validate_exact_match_in_by_excel_key(normalize_basic(fee_base), by_excel_key_index)
+            if candidate:
+                excel_key, json_key = candidate
+                if process_name and not _is_excel_key_allowed_for_process(field_dictionary, excel_key, process_name):
+                    pass
+                else:
+                    return MatchResult(
+                        partner_field=field_name,
+                        column_category=column_category,
+                        matched_excel_key=excel_key,
+                        matched_json_key=json_key,
+                        confidence=0.99,
+                        match_type="policy_structured_fee",
+                        reasoning=(
+                            "Mapping policy structured fee catalogue match: "
+                            f"'{field_name}' normalized to '{normalize_basic(field_name)}' matched base key '{excel_key}'."
+                        ),
+                        entity=entity,
+                    )
+
     # Fee/charge semantics first: partner names like siteVisitCharge / clearingCharges
     # must map to the FEE bucket, not lose to a coincidental exact/alias hit.
     if field_implies_fee_charge_semantics(field_name):
@@ -1089,28 +1279,12 @@ def match_field(
             entity="FEE",
         )
 
-    field_dictionary = refs.get("field_dictionary", {})
-    alias_registry = refs.get("alias_registry", {})
-
-    # Build role-based index (all processes)
-    field_dict_index = _build_field_dict_index(field_dictionary)
-
-    # Build authoritative by_excel_key indexes for validation
-    # These are the ground truth — only genuine internal excel_keys appear here
-    by_excel_key_index = _build_by_excel_key_index(field_dictionary)
-    by_excel_key_process_index = _build_process_by_excel_key_index(field_dictionary, process_name)
-
-    # Build process-scoped role index
-    process_field_dict_index = _build_process_field_dict_index(field_dictionary, process_name)
-
     # ====== 1a. EXACT MATCH — raw (normalize_basic, prefixes preserved) ======
     #
     # Priority: check by_excel_key (authoritative) FIRST, then fall back to the
     # role-based index. This prevents false matches where by_role contains
     # partner-style field names that collide with unrelated internal keys.
     #
-    basic_normalized = normalize_basic(field_name)
-
     # 1a-i: Check authoritative by_excel_key (process-scoped first)
     process_exact = _validate_exact_match_in_by_excel_key(basic_normalized, by_excel_key_process_index)
     if process_exact:
@@ -1207,8 +1381,6 @@ def match_field(
     #
     # Same field_dictionary-first priority: check by_excel_key before role index.
     #
-    normalized_field = normalize_field(field_name)
-
     if normalized_field and normalized_field != basic_normalized:
 
         # 1b-i: Check authoritative by_excel_key (process-scoped first)
@@ -1308,8 +1480,14 @@ def match_field(
     # ====== 2. ALIAS MATCH (tiers 1–4) ======
     forward_aliases = alias_registry.get("forward", {})
 
-    if normalized_field in forward_aliases:
-        alias_entry = forward_aliases[normalized_field]
+    alias_lookup_key: Optional[str] = None
+    for cand in _alias_forward_key_candidates(normalized_field):
+        if cand in forward_aliases:
+            alias_lookup_key = cand
+            break
+
+    if alias_lookup_key:
+        alias_entry = forward_aliases[alias_lookup_key]
         target_excel_key = alias_entry.get("target_excel_key", "")
         target_json_key = alias_entry.get("target_json_key", "")
         frequency = alias_entry.get("frequency", 0)
@@ -1363,8 +1541,8 @@ def match_field(
                 final_excel_key, final_json_key = co_hit
                 final_confidence = min(final_confidence, 0.92)
             else:
-                gen_hit = _first_loancoapp_custparam_for_entity(
-                    ent_u, field_dictionary, process_name
+                gen_hit = _next_sequential_loanparameter_from_catalogue(
+                    field_dictionary, process_name, lp_used
                 )
                 if gen_hit:
                     g_ek, g_jk = gen_hit
@@ -1378,7 +1556,7 @@ def match_field(
                         reasoning=(
                             f"Alias ({tier}) target '{target_excel_key}' is applicant-scoped while "
                             f"entity={ent_u}; no exact co-applicant catalogue key — assigned generic "
-                            f"parameter slot '{g_ek}'."
+                            f"LOANPARAMETER bucket '{g_ek}'."
                         ),
                         entity=entity,
                     )
@@ -1391,7 +1569,7 @@ def match_field(
                     match_type=MatchType.UNMATCHED.value,
                     reasoning=(
                         f"Alias ({tier}) target '{target_excel_key}' is applicant-scoped while "
-                        f"entity={ent_u}; no co-applicant PUTM equivalent or LOANCOAPP slot in "
+                        f"entity={ent_u}; no co-applicant PUTM equivalent or LOANPARAMETER slot in "
                         f"catalogue."
                     ),
                     entity=entity,
@@ -1475,6 +1653,11 @@ def match_field(
                 entity=entity,
             )
 
+        alias_note = (
+            f"; stabilized alias key '{alias_lookup_key}'"
+            if alias_lookup_key and alias_lookup_key != normalized_field
+            else ""
+        )
         return MatchResult(
             partner_field=field_name,
             column_category=column_category,
@@ -1484,7 +1667,7 @@ def match_field(
             match_type=match_type,
             reasoning=(
                 f"Alias match ({tier}): '{field_name}' → '{target_excel_key}' "
-                f"(frequency={frequency})" +
+                f"(frequency={frequency}){alias_note}" +
                 (f"; entity substitution applied: {substituted_key}" if substituted_key else "") +
                 (
                     f"; category override applied: {final_excel_key}"
@@ -1561,6 +1744,7 @@ def match_field(
                 entity,
                 refs,
                 process_name=process_name,
+                loanparameter_used_indices=lp_used,
             )
             if inner.match_type != MatchType.UNMATCHED.value and inner.matched_excel_key:
                 return MatchResult(
@@ -1597,13 +1781,25 @@ def match_batch(
 ) -> Dict[str, List[MatchResult]]:
     matched = []
     unmatched = []
+    loanparameter_used: Set[int] = set()
     for field_dict in fields:
         field_name = field_dict.get("field_name", "")
         column_category = field_dict.get("column_category")
         entity = field_dict.get("entity")
         if not field_name:
             continue
-        result = match_field(field_name, column_category, entity, refs, process_name=process_name)
+        result = match_field(
+            field_name,
+            column_category,
+            entity,
+            refs,
+            process_name=process_name,
+            loanparameter_used_indices=loanparameter_used,
+        )
+        ek_lp = (result.matched_excel_key or "").strip()
+        m_lp = re.fullmatch(r"(?i)LOANPARAMETER(\d+)", ek_lp)
+        if m_lp:
+            loanparameter_used.add(int(m_lp.group(1)))
         if result.match_type == MatchType.UNMATCHED.value:
             unmatched.append(result)
         else:

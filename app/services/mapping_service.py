@@ -9,9 +9,9 @@ Layer 3 — post-processing + Excel output (post_processor + generate_output)
 Prompt ownership:
   The base prompt template lives on the Dvara/Langfuse platform.
   prompt_builder builds the rendered context block (client, entity,
-  available_excel_keys, semantic_shortcuts, fields_to_map) and that
-  block is posted as-is to the gateway via the `task` form-data field.
-  No local prompt file is read or needed anywhere in this service.
+  available_excel_keys, semantic_shortcuts, fields_to_map, fee PUTM policy
+  from references/mapping_policy.json) and that block is posted as-is to
+  the gateway via the `task` form-data field.
 """
 
 import json
@@ -20,86 +20,83 @@ import re
 import sys
 import importlib.util
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
-
-from app.services.match_context import coapplicant_custparam_base
+from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
 
-CUSTOMER_PARAM_CATEGORY_HINTS = (
-    "customer",
-    "applicant",
-    "coapplicant",
-    "co applicant",
-    "borrower",
-    "personal",
-    "employment",
-    "income",
-    "bank",
-    "bureau",
-    "kyc",
-    "address",
-    "reference",
-    "demographic",
-)
+def _putm_refinement_reasoning_disagrees_with_row(
+    row: Dict[str, Any], llm_reasoning: str
+) -> bool:
+    """
+    If the LLM narrative names a co-applicant scope while the row is clearly
+    applicant/customer (entity + optional category signal), treat the mapping as
+    review-only. This does not change excel_key; it only surfaces inconsistency.
+    """
+    from app.services.prompt_builder import _column_category_putm_signal
 
-LOAN_LEVEL_CATEGORY_HINTS = (
-    "loan",
-    "disbursement",
-    "repayment",
-    "emi",
-    "pricing",
-    "sanction",
-    "scheme",
-    "product",
-    "facility",
-)
+    r = (llm_reasoning or "").strip()
+    if not r:
+        return False
+    r_lower = r.lower()
+    ent = (row.get("entity") or "OTHER").strip().upper()
+    cat_sig = _column_category_putm_signal(row.get("column_category") or "")
 
-LOAN_LEVEL_FIELD_HINTS = {
-    "irr", "iir", "foir", "ltv", "loantovalue", "marginmoney",
-    "downpayment", "schemename", "schemeid", "schemecode",
-    "subproduct", "reducedemi", "tenure", "interest", "apr",
-    "loanamount", "sanctionamount", "approvedamount", "emiamount",
-    "disbursementamount", "repaymentfrequency",
-}
+    applicant_row = ent in ("APPLICANT", "CUSTOMER") and not ent.startswith(
+        "COAPPLICANT"
+    )
+    if not (applicant_row or cat_sig == "applicant"):
+        return False
 
-
-def _normalize_hint_text(value: Optional[str]) -> str:
-    if not value:
-        return ""
-    return re.sub(r"[^a-z0-9]+", " ", value.strip().lower()).strip()
+    if re.search(r"detected_entity\s*=\s*coapplicant", r_lower):
+        return True
+    # Echoed column_category=...Co-applicant... on an applicant-scoped row
+    if re.search(r"column_category\s*=\s*[^|\\n]*co[\s-]?applicant", r_lower):
+        return True
+    return False
 
 
 def _fallback_parameter_bucket(item: Dict[str, Any]) -> str:
-    entity = (item.get("entity") or "").upper()
-    category = _normalize_hint_text(item.get("column_category") or item.get("category") or "")
-    field = _normalize_hint_text(item.get("partner_field") or item.get("field_name") or "")
-    compact_field = field.replace(" ", "")
-
-    coapp_base = coapplicant_custparam_base(entity)
-    if coapp_base and compact_field not in LOAN_LEVEL_FIELD_HINTS:
-        return coapp_base
-
-    if entity in {"APPLICANT", "CUSTOMER"}:
-        if compact_field not in LOAN_LEVEL_FIELD_HINTS:
-            return "LOANAPPLICANTPARAM"
-
-    if any(hint in category for hint in CUSTOMER_PARAM_CATEGORY_HINTS):
-        if compact_field not in LOAN_LEVEL_FIELD_HINTS:
-            cb = coapplicant_custparam_base(entity)
-            if cb:
-                return cb
-            return "LOANAPPLICANTPARAM"
-
-    if (
-        entity == "LOAN"
-        and any(hint in category for hint in LOAN_LEVEL_CATEGORY_HINTS)
-        and any(hint in field for hint in CUSTOMER_PARAM_CATEGORY_HINTS)
-    ):
-        return "LOANAPPLICANTPARAM"
-
+    """Last-resort name for entity-alignment recovery; prefer assign_sequential_loanparameter_slots for new rows."""
+    _ = item
     return "LOANPARAMETER"
+
+
+def assign_sequential_loanparameter_slots(rows: Optional[List[Dict[str, Any]]]) -> None:
+    """
+    For every row with missing or blank ``matched_excel_key``, assign a unique
+    ``LOANPARAMETER{n}`` key. Indices skip any ``n`` already taken by existing
+    LOANPARAMETER* assignments in the same list.
+    """
+    if not rows:
+        return
+    used: Set[int] = set()
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        ek = (r.get("matched_excel_key") or "").strip().upper()
+        m = re.fullmatch(r"LOANPARAMETER(\d+)", ek)
+        if m:
+            used.add(int(m.group(1)))
+    n = 0
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        if (r.get("matched_excel_key") or "").strip():
+            continue
+        while n in used:
+            n += 1
+        key = f"LOANPARAMETER{n}"
+        r["matched_excel_key"] = key
+        used.add(n)
+        n += 1
+        r.setdefault("json_key", "")
+        r.setdefault("match_type", "sequential_loanparameter_fallback")
+        r.setdefault("confidence", 0.0)
+        r.setdefault("needs_review", True)
+        r.setdefault("winning_engine", r.get("winning_engine") or "none")
+        if not (r.get("reasoning") or "").strip():
+            r["reasoning"] = f"No PUTM match; assigned sequential bucket {key}."
 
 
 _RE_REFINE_DETERMINISTIC_BUCKET = re.compile(
@@ -156,16 +153,95 @@ def _recover_prior_loanparameter_excel_key(
     return _ok(fb)
 
 
-def _is_parameter_bucket_candidate(item: Dict[str, Any]) -> bool:
-    excel_key = (item.get("matched_excel_key") or "").upper()
-    return (
-        not excel_key
-        or excel_key == "LOANPARAMETER"
-        or excel_key.startswith("LOANPARAMETER")
-        or excel_key == "LOANAPPLICANTPARAM"
-        or excel_key.startswith("LOANAPPLICANTPARAM")
-        or item.get("match_type") == "unmatched_parameter_fallback"
+_RE_FORBIDDEN_LLM_PARAM_FAMILY = re.compile(
+    r"^(LOANAPPLICANTPARAM\d*|LOANCOAPPLICANTPARAM\d*|LOANCOAPP\d+CUSTPARAM\d*)$",
+    re.I,
+)
+_RE_PUTM_GENERIC_LOANPARAMETER_KEY = re.compile(r"^LOANPARAMETER\d*$", re.I)
+
+
+def _is_putm_generic_loanparameter_excel_key(excel_key: Optional[str]) -> bool:
+    """True for generic bucket keys LOANPARAMETER / LOANPARAMETER12 (still a bucket, not a semantic PUTM field)."""
+    ek = (excel_key or "").strip()
+    return bool(ek and _RE_PUTM_GENERIC_LOANPARAMETER_KEY.match(ek))
+
+
+def _matched_key_is_forbidden_llm_param_family(excel_key: Optional[str]) -> bool:
+    """
+    Keys the LLM must not assign: applicant custom-parameter buckets and co-applicant
+    CUSTPARAM slots. Deterministic / alias matches are unchanged — this is enforced
+    only on LLM outputs in ``run_hybrid_llm`` and PUTM refinement.
+    """
+    ek = (excel_key or "").strip()
+    if not ek:
+        return False
+    return bool(_RE_FORBIDDEN_LLM_PARAM_FAMILY.match(ek))
+
+
+def _apply_llm_forbidden_param_family_policy(
+    mapping: Dict[str, Any],
+    prev: Dict[str, Any],
+    field_dictionary: Dict[str, Any],
+) -> None:
+    """In-place: revert or clear targets when the LLM chose a disallowed param key."""
+    ek = (mapping.get("matched_excel_key") or "").strip()
+    if not _matched_key_is_forbidden_llm_param_family(ek):
+        return
+
+    proposed = ek
+    prev = prev if isinstance(prev, dict) else {}
+    prev_ek = (prev.get("matched_excel_key") or "").strip()
+    by_excel = field_dictionary.get("by_excel_key") or {}
+    msg_policy = (
+        "Policy: LLM may not assign LOANAPPLICANTPARAM* / LOANCOAPPLICANTPARAM* / "
+        "LOANCOAPP*CUSTPARAM* targets."
     )
+    llm_reason = (mapping.get("reasoning") or "").strip()
+
+    if prev_ek and not _matched_key_is_forbidden_llm_param_family(prev_ek):
+        info = by_excel.get(prev_ek, {})
+        mapping["matched_excel_key"] = prev_ek
+        mapping["json_key"] = (prev.get("json_key") or info.get("json_key") or "").strip()
+        mapping["confidence"] = float(prev.get("confidence") or 0.0)
+        mapping["match_type"] = (prev.get("match_type") or "deterministic").strip() or "deterministic"
+        mapping["winning_engine"] = (
+            (prev.get("winning_engine") or prev.get("match_type") or "deterministic").strip()
+            or "deterministic"
+        )
+        mapping["reasoning"] = (prev.get("reasoning") or llm_reason or "").strip()
+        mapping["needs_review"] = bool(prev.get("needs_review", False))
+        note = (
+            f"{msg_policy} Reverted LLM proposal {proposed}"
+            + (f" (LLM: {llm_reason})" if llm_reason else "")
+            + f" → kept {prev_ek}."
+        )
+    elif prev_ek:
+        mapping["matched_excel_key"] = ""
+        mapping["json_key"] = ""
+        mapping["confidence"] = 0.0
+        mapping["match_type"] = "llm_forbidden_param_rejected"
+        mapping["winning_engine"] = "none"
+        mapping["needs_review"] = True
+        note = (
+            f"{msg_policy} Rejected {proposed}"
+            + (f" (LLM: {llm_reason})" if llm_reason else "")
+            + f"; pre-LLM target {prev_ek} is also disallowed — cleared for fallback."
+        )
+    else:
+        mapping["matched_excel_key"] = ""
+        mapping["json_key"] = ""
+        mapping["confidence"] = 0.0
+        mapping["match_type"] = "llm_forbidden_param_rejected"
+        mapping["winning_engine"] = "none"
+        mapping["needs_review"] = True
+        note = (
+            f"{msg_policy} Rejected {proposed}"
+            + (f" (LLM: {llm_reason})" if llm_reason else "")
+            + " (no pre-LLM target)."
+        )
+
+    lr = (mapping.get("llm_change_reason") or "").strip()
+    mapping["llm_change_reason"] = f"{lr}; {note}".strip("; ") if lr else note
 
 
 # ── sys.path helper ────────────────────────────────────────────────────────────
@@ -288,6 +364,16 @@ def build_references_from_db_direct(
     out.write_text(json.dumps(er, indent=2, ensure_ascii=False), encoding="utf-8")
     logger.info(f"✓ Wrote {out}  ({er['metadata']['total_groupings']} groupings)")
 
+    from app.services.mapping_policy_generator import write_mapping_policy
+
+    pol_path, pol_key_count, pol_new = write_mapping_policy(str(ref_dir), fd)
+    logger.info(
+        "✓ Wrote %s  (%d structured fee PUTM base keys; %d new vs prior policy file)",
+        pol_path,
+        pol_key_count,
+        pol_new,
+    )
+
     return {
         "field_count":           len(fd.get("all_excel_keys", [])),
         "alias_count":           len(ar.get("forward", {})),
@@ -295,6 +381,9 @@ def build_references_from_db_direct(
         "references_dir":        references_dir,
         "field_dict_total":      fd["metadata"]["total"],
         "total_partners":        ar["metadata"]["total_partners"],
+        "mapping_policy_path":   str(pol_path),
+        "mapping_policy_fee_keys": pol_key_count,
+        "mapping_policy_new_fee_keys": pol_new,
     }
 
 
@@ -462,6 +551,7 @@ def run_deterministic(
             prompt_template="",   # gateway owns the base template
             client_name="",
             process_name=process_name,
+            mapping_policy=refs.get("mapping_policy") or {},
         )
         if unmatched_dicts
         else []
@@ -473,6 +563,7 @@ def run_deterministic(
         "entity_prompts":        entity_prompts,
         "field_dictionary":      fd,
         "alias_registry":        ar,
+        "mapping_policy":        refs.get("mapping_policy") or {},
     }
 
 
@@ -560,14 +651,17 @@ def refine_loanparameter_after_deterministic(
 
     from app.services.prompt_builder import build_loanparameter_refinement_prompts
     from app.services.llm_service import LLMService
+    from matching_engine import load_references
 
     try:
+        mapping_policy = load_references(settings.references_dir).get("mapping_policy") or {}
         prompts = build_loanparameter_refinement_prompts(
             loanparameter_rows=lp_rows,
             field_dictionary=field_dictionary,
             alias_registry=alias_registry,
             client_name=client_name,
             process_name=process_name,
+            mapping_policy=mapping_policy,
         )
         logger.info("REFINE_DEBUG: prompts built = %d", len(prompts))
     except Exception as e:
@@ -577,6 +671,39 @@ def refine_loanparameter_after_deterministic(
     if not prompts:
         logger.info("REFINE_DEBUG: no prompts returned — skipping")
         return deterministic_results
+
+    sent_ids = {
+        (r.get("partner_field") or r.get("field_name") or "").strip()
+        for ep in prompts
+        for r in (ep.get("fields") or [])
+        if isinstance(r, dict)
+    }
+    sent_ids.discard("")
+    expected_ids = {
+        (r.get("partner_field") or r.get("field_name") or "").strip()
+        for r in lp_rows
+        if isinstance(r, dict)
+    }
+    expected_ids.discard("")
+    empty_id_rows = sum(
+        1
+        for r in lp_rows
+        if isinstance(r, dict)
+        and not (r.get("partner_field") or r.get("field_name") or "").strip()
+    )
+    if empty_id_rows:
+        logger.warning(
+            "LOANPARAMETER refinement: %d row(s) lack partner_field/field_name — cannot be returned by LLM; "
+            "they stay on their current LOANPARAMETER* bucket.",
+            empty_id_rows,
+        )
+    if len(sent_ids) != len(expected_ids):
+        logger.warning(
+            "LOANPARAMETER refinement: %d distinct field id(s) sent to LLM vs %d row(s) with ids "
+            "(duplicates or build mismatch).",
+            len(sent_ids),
+            len(expected_ids),
+        )
 
     llm = LLMService(settings)
     logger.info("REFINE_DEBUG: LLMService.loanparameter_refinement_url = %r", llm.loanparameter_refinement_url)
@@ -660,10 +787,61 @@ def refine_loanparameter_after_deterministic(
             })
             continue
 
+        if _matched_key_is_forbidden_llm_param_family(new_key):
+            old_lp = row.get("matched_excel_key") or ""
+            logger.warning(
+                "LOANPARAMETER refinement: disallowed param family %r for field %r — keeping bucket",
+                new_key,
+                pf,
+            )
+            out.append({
+                **row,
+                "needs_review": True,
+                "llm_change_reason": (
+                    (row.get("llm_change_reason") or "").strip()
+                    + f" PUTM refinement proposed disallowed key {new_key} (applicant/co-app param policy); "
+                    f"kept {old_lp}."
+                ).strip(),
+            })
+            continue
+
+        if _is_putm_generic_loanparameter_excel_key(new_key):
+            old_lp = (row.get("matched_excel_key") or "").strip()
+            if new_key.upper() == old_lp.upper():
+                out.append(row)
+            else:
+                logger.info(
+                    "PUTM refinement: generic LOANPARAMETER bucket %r for field %r — keeping %r",
+                    new_key,
+                    pf,
+                    old_lp,
+                )
+                out.append({
+                    **row,
+                    "needs_review": True,
+                    "llm_change_reason": (
+                        (row.get("llm_change_reason") or "").strip()
+                        + f" PUTM refinement proposed generic bucket {new_key} (no concrete PUTM key); "
+                        f"kept {old_lp or 'LOANPARAMETER* slot'}."
+                    ).strip(),
+                })
+            continue
+
         info = by_excel[new_key]
         old_key = row.get("matched_excel_key")
         conf = float(new_m.get("confidence") or 0.0)
         new_reason = (new_m.get("reasoning") or "").strip()
+
+        scope_mismatch = _putm_refinement_reasoning_disagrees_with_row(row, new_reason)
+        llm_change = (
+            f"Deterministic bucket was {old_key}; PUTM refinement → {new_key}."
+            + (f" {new_reason}" if new_reason else "")
+        ).strip()
+        if scope_mismatch:
+            llm_change = (
+                f"{llm_change} Post-check: LLM reasoning names co-applicant scope but "
+                "the row entity/category is applicant-scoped — verify mapping."
+            ).strip()
 
         out.append({
             **row,
@@ -674,11 +852,8 @@ def refine_loanparameter_after_deterministic(
             "match_type":        "llm_putm_refinement",
             "winning_engine":    "llm_putm_refinement",
             "reasoning":         new_reason or row.get("reasoning", ""),
-            "llm_change_reason": (
-                f"Deterministic bucket was {old_key}; PUTM refinement → {new_key}."
-                + (f" {new_reason}" if new_reason else "")
-            ).strip(),
-            "needs_review":      conf < review_threshold,
+            "llm_change_reason": llm_change,
+            "needs_review":      conf < review_threshold or scope_mismatch,
         })
 
     logger.info(
@@ -701,6 +876,7 @@ def run_hybrid_llm(
     use_llm: bool        = True,
     client_name: str     = "",
     process_name: str    = "",
+    mapping_policy: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[Dict], Dict[str, int]]:
     """
     Layer 2: fuzzy → embeddings → LLM.
@@ -716,6 +892,11 @@ def run_hybrid_llm(
     from app.services.llm_service      import LLMService
     from app.services.prompt_builder   import build_entity_prompts
     from app.services.match_context    import semantic_field_guard_reason
+
+    if mapping_policy is None:
+        from matching_engine import load_references
+
+        mapping_policy = load_references(settings.references_dir).get("mapping_policy") or {}
 
     remaining = list(unmatched_fields)
     results:   List[Dict] = []
@@ -1074,6 +1255,7 @@ def run_hybrid_llm(
                 client_name=client_name,
                 process_name=process_name,
                 pipeline_context_payload=llm_context_payload,
+                mapping_policy=mapping_policy,
             )
             llm_svc      = LLMService(settings)
             llm_mappings = llm_svc.map_fields(fresh_prompts)
@@ -1168,6 +1350,10 @@ def run_hybrid_llm(
                 )
                 mapping["entity"] = (mapping["entity"] or "OTHER").upper()
 
+                _apply_llm_forbidden_param_family_policy(
+                    mapping, prev, field_dictionary,
+                )
+
                 prev_reason = _format_previous_mapping_reason(prev) if isinstance(prev, dict) else ""
                 if prev_reason:
                     mapping["previous_mapping_reason"] = prev_reason
@@ -1211,28 +1397,21 @@ def run_hybrid_llm(
                 )
         results.extend(review_candidates_by_field.values())
 
-    # Still unmatched after all engines
+    # Still unmatched after all engines — assign unique LOANPARAMETER{n} via one pass below
     unmatched_count = 0
-    fallback_loan_parameter = 0
-    fallback_loan_applicant_parameter = 0
     for f in remaining:
         field_id = _field_id(f)
         if field_id and field_id in review_candidates_by_field:
             continue
-        fallback_excel_key = _fallback_parameter_bucket(f)
-        if fallback_excel_key == "LOANAPPLICANTPARAM":
-            fallback_loan_applicant_parameter += 1
-        else:
-            fallback_loan_parameter += 1
         results.append({
             **f,
-            "matched_excel_key": fallback_excel_key,
+            "matched_excel_key": "",
             "json_key":          "",
             "confidence":        0.0,
             "match_type":        "unmatched_parameter_fallback",
             "reasoning":         (
                 "No match found in deterministic, fuzzy, embedding, or LLM engines; "
-                f"defaulted to {fallback_excel_key} using entity/category/field context"
+                "assigning sequential LOANPARAMETER*n bucket."
             ),
             "previous_mapping_reason": (
                 "No earlier engine produced an accepted match; "
@@ -1245,13 +1424,12 @@ def run_hybrid_llm(
         })
         unmatched_count += 1
     breakdown["unmatched"] = unmatched_count
+
+    assign_sequential_loanparameter_slots(results)
     if unmatched_count:
         logger.info(
-            "Fallback-labeled unmatched fields: total=%d, LOANPARAMETER=%d, "
-            "LOANAPPLICANTPARAM=%d",
+            "Fallback-labeled unmatched fields (sequential LOANPARAMETER*n): total=%d",
             unmatched_count,
-            fallback_loan_parameter,
-            fallback_loan_applicant_parameter,
         )
 
     return results, breakdown
@@ -1264,121 +1442,11 @@ def refine_parameter_buckets(
     process_name: str = "",
 ) -> List[Dict[str, Any]]:
     """
-    Extra classifier pass:
-    send parameter-like rows to a second LLM gateway that decides only
-    LOANPARAMETER vs LOANAPPLICANTPARAM.
+    Deprecated: LLM LOANPARAMETER vs LOANAPPLICANTPARAM classification was removed.
+    Unmatched rows get sequential LOANPARAMETER{n} in ``run_hybrid_llm`` / ``finalize_mappings``.
+    Kept for API compatibility; returns input unchanged.
     """
-    if not getattr(settings, "parameter_classifier_gateway_url", ""):
-        logger.info("Parameter classifier gateway not configured — skipping refinement")
-        return all_mappings
-
-    from app.services.llm_service import LLMService
-    from app.services.prompt_builder import build_parameter_classifier_prompt
-
-    def _classifier_id(item: Dict[str, Any]) -> str:
-        partner_field = (item.get("partner_field") or item.get("field_name") or "").strip()
-        entity = (item.get("entity") or "OTHER").strip().upper()
-        return f"{entity}||{partner_field}"
-
-    candidates = [
-        {
-            **item,
-            "partner_field": _classifier_id(item),
-            "_original_partner_field": item.get("partner_field") or item.get("field_name"),
-        }
-        for item in all_mappings
-        if _is_parameter_bucket_candidate(item)
-        and (item.get("partner_field") or item.get("field_name"))
-    ]
-
-    if not candidates:
-        logger.info("No parameter-bucket candidates found for classifier step")
-        return all_mappings
-
-    logger.info(
-        "Preparing parameter bucket classifier input: total_candidates=%d",
-        len(candidates),
-    )
-
-    classifier = LLMService(settings)
-    prompt_payload = build_parameter_classifier_prompt(
-        candidates,
-        client_name=client_name,
-        process_name=process_name,
-    )
-
-    try:
-        classified = classifier.classify_parameter_buckets(prompt_payload)
-    except Exception as e:
-        logger.error("Parameter bucket classifier failed: %s", e, exc_info=True)
-        return all_mappings
-
-    if not classified:
-        logger.info("Parameter bucket classifier returned no usable results")
-        return all_mappings
-
-    by_field = {item["partner_field"]: item for item in classified if item.get("partner_field")}
-    updated = 0
-    to_loan_parameter = 0
-    to_loan_applicant = 0
-
-    for item in all_mappings:
-        original_field_name = item.get("partner_field") or item.get("field_name")
-        if not original_field_name:
-            continue
-        classifier_key = _classifier_id(item)
-        if classifier_key not in by_field:
-            continue
-        classification = by_field[classifier_key]
-        new_bucket = classification["matched_excel_key"]
-        old_bucket = item.get("matched_excel_key")
-
-        old_reasoning = (item.get("reasoning") or "").strip()
-        classifier_reasoning = classification.get("reasoning", "").strip()
-
-        item["matched_excel_key"] = new_bucket
-        item["json_key"] = ""
-        item["confidence"] = classification.get("confidence", item.get("confidence", 0.0))
-        item["needs_review"] = classification.get("needs_review", item.get("needs_review", True))
-        item["winning_engine"] = "llm_parameter_bucket"
-        item["match_type"] = "llm_parameter_bucket"
-
-        item.setdefault("previous_mapping_reason", "")
-        item.setdefault("llm_change_reason", "")
-        item.setdefault("llm_param_bucket_reason", "")
-        item["llm_param_bucket_reason"] = (
-            "LLM parameter bucket classifier decision: "
-            f"old_bucket={old_bucket or '(none)'} new_bucket={new_bucket}. "
-            f"entity={(item.get('entity') or 'OTHER')} "
-            f"process_name={process_name or ''} "
-            f"column_category={(item.get('column_category') or '')}. "
-            f"Reason: {classifier_reasoning}"
-        ).strip()
-
-        if old_reasoning:
-            item["reasoning"] = f"{old_reasoning} → Parameter bucket classifier chose {new_bucket}. {classifier_reasoning}"
-        else:
-            item["reasoning"] = f"Parameter bucket classifier chose {new_bucket}. {classifier_reasoning}"
-
-        updated += 1
-        if new_bucket == "LOANAPPLICANTPARAM":
-            to_loan_applicant += 1
-        else:
-            to_loan_parameter += 1
-        logger.info(
-            "Parameter classifier: field=%s old_bucket=%s new_bucket=%s confidence=%.4f",
-            original_field_name,
-            old_bucket or "(none)",
-            new_bucket,
-            item["confidence"],
-        )
-
-    logger.info(
-        "Parameter bucket classifier summary: updated=%d LOANPARAMETER=%d LOANAPPLICANTPARAM=%d",
-        updated,
-        to_loan_parameter,
-        to_loan_applicant,
-    )
+    _ = (settings, client_name, process_name)
     return all_mappings
 
 
@@ -1391,7 +1459,10 @@ def _base_excel_key(excel_key: Optional[str]) -> str:
     return value[: i + 1]
 
 
-def _apply_fee_entity_override(all_mappings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _apply_fee_entity_override(
+    all_mappings: List[Dict[str, Any]],
+    structured_fee_putm_base_keys: FrozenSet[str],
+) -> List[Dict[str, Any]]:
     """
     Final business rule: if entity is FEE, force the mapping into the FEE
     bucket regardless of any earlier alias/fuzzy/LLM match.
@@ -1404,6 +1475,8 @@ def _apply_fee_entity_override(all_mappings: List[Dict[str, Any]]) -> List[Dict[
         if partner_field_excludes_generic_fee_bucket(pf):
             return True
         ek = _base_excel_key(row.get("matched_excel_key") or "").upper()
+        if ek in structured_fee_putm_base_keys:
+            return True
         if ek.startswith("APPLICANTINSURANCE"):
             return True
         if "FEEPERCENTAGE" in ek:
@@ -1592,16 +1665,51 @@ def _apply_entity_excel_key_alignment(
     return out
 
 
-def dedupe_one_row_per_excel_key(mappings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _assign_slots_for_base_loanparameter(
+    rows: List[Dict[str, Any]],
+    by_excel_key: Dict[str, Any],
+) -> None:
+    """Replace bare ``LOANPARAMETER`` with ``LOANPARAMETER{{n}}`` using next free indices."""
+    used: Set[int] = set()
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        ek = (r.get("matched_excel_key") or "").strip()
+        m = re.fullmatch(r"(?i)LOANPARAMETER(\d+)", ek)
+        if m:
+            used.add(int(m.group(1)))
+    n = 0
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        ek = (r.get("matched_excel_key") or "").strip()
+        if not re.fullmatch(r"(?i)LOANPARAMETER$", ek):
+            continue
+        while n in used:
+            n += 1
+        new_key = f"LOANPARAMETER{n}"
+        r["matched_excel_key"] = new_key
+        used.add(n)
+        n += 1
+        info = by_excel_key.get(new_key) or by_excel_key.get(new_key.upper()) or {}
+        r["json_key"] = info.get("json_key") or new_key
+
+
+def dedupe_one_row_per_excel_key(
+    mappings: List[Dict[str, Any]],
+    by_excel_key: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
     """
-    PUTM excel keys are unique in the target: if multiple partner rows map to the
-    same matched_excel_key (case-insensitive), keep one row — highest confidence
-    wins; on a tie, the earliest row in the input list wins. Entity is ignored
-    for grouping so e.g. two sources cannot both claim APPLICATIONFILEID.
-    Rows without matched_excel_key are left unchanged.
+    When multiple rows share the same ``matched_excel_key`` (case-insensitive),
+    keep the highest-confidence row on that key (tie: earliest in the list).
+    All other rows in the group are **kept** and remapped to sequential
+    ``LOANPARAMETER*n`` slots — they are not dropped. Entity is ignored for
+    grouping. Rows with no ``matched_excel_key`` are unchanged.
     """
-    if not mappings or len(mappings) < 2:
+    if not mappings:
         return mappings
+
+    by_ek = by_excel_key or {}
 
     def _identity_key(m: Dict[str, Any]) -> Optional[str]:
         ek = (m.get("matched_excel_key") or "").strip()
@@ -1609,33 +1717,105 @@ def dedupe_one_row_per_excel_key(mappings: List[Dict[str, Any]]) -> List[Dict[st
             return None
         return ek.upper()
 
-    best_idx: Dict[str, int] = {}
-    best_conf: Dict[str, float] = {}
-    for i, m in enumerate(mappings):
-        key = _identity_key(m)
-        if key is None:
-            continue
-        c = float(m.get("confidence") or 0.0)
-        if key not in best_conf or c > best_conf[key]:
-            best_conf[key] = c
-            best_idx[key] = i
+    out: List[Dict[str, Any]] = [dict(m) if isinstance(m, dict) else m for m in mappings]
 
-    out: List[Dict[str, Any]] = []
-    for i, m in enumerate(mappings):
-        key = _identity_key(m)
-        if key is None:
-            out.append(m)
+    groups: Dict[str, List[int]] = {}
+    for i, m in enumerate(out):
+        k = _identity_key(m)
+        if k is None:
             continue
-        if best_idx.get(key) == i:
-            out.append(m)
+        groups.setdefault(k, []).append(i)
 
-    dropped = len(mappings) - len(out)
-    if dropped:
-        logger.info(
-            "dedupe_one_row_per_excel_key: removed %d duplicate row(s) "
-            "sharing the same matched_excel_key",
-            dropped,
+    rerouted = 0
+    for _key, indices in groups.items():
+        if len(indices) < 2:
+            continue
+
+        def _match_type_priority(m: Dict[str, Any]) -> int:
+            """
+            Higher = more trusted winner when keys collide.
+
+            Rationale: LLM match types can be over-confident; when an LLM-only mapping
+            collides with a deterministic match (exact/alias), prefer deterministic.
+            """
+            mt = (m.get("match_type") or "").strip().lower()
+            if not mt:
+                return 0
+
+            # Deterministic / rule-based (most trusted)
+            if mt == "exact" or mt.endswith(".exact"):
+                return 300
+            if mt == "fee":
+                return 295
+            if "document" in mt:
+                return 280
+            if mt.startswith("alias") or "alias_tier" in mt:
+                return 260
+
+            # Hybrid engines
+            if "embedding" in mt:
+                return 220
+            if "fuzzy" in mt:
+                return 210
+
+            # LLM refinements / fallbacks
+            if mt == "llm_putm_refinement":
+                return 160
+            if "semantic_shortcut" in mt:
+                return 120
+            if mt.startswith("llm_") or mt == "llm":
+                return 110
+
+            # Explicit non-matches / forced reroutes
+            if mt == "unmatched":
+                return 10
+            if mt.startswith("duplicate_excel_key_") or mt.endswith("_displaced"):
+                return 5
+
+            return 100
+
+        ranked = sorted(
+            indices,
+            key=lambda i: (
+                -_match_type_priority(out[i]),
+                -float(out[i].get("confidence") or 0.0),
+                i,
+            ),
         )
+        winner_i = ranked[0]
+        winner = out[winner_i]
+        win_pf = (winner.get("partner_field") or winner.get("field_name") or "").strip()
+        win_c = float(winner.get("confidence") or 0.0)
+        win_mt = (winner.get("match_type") or "").strip()
+        for loser_i in ranked[1:]:
+            loser = out[loser_i]
+            prev_reason = (loser.get("reasoning") or "").strip()
+            dup_key = (loser.get("matched_excel_key") or "").strip()
+            bump = (
+                f"PUTM key collision: shared matched_excel_key={dup_key!r} with "
+                f"winner field {win_pf!r} (match_type={win_mt!r}, confidence={win_c:.2f}); "
+                "rerouted to sequential LOANPARAMETER*n bucket."
+            )
+            reasoning = f"{prev_reason}; {bump}" if prev_reason else bump
+            out[loser_i] = {
+                **loser,
+                "matched_excel_key": "LOANPARAMETER",
+                "json_key": "",
+                "confidence": min(float(loser.get("confidence") or 0.0), 0.79),
+                "match_type": "duplicate_excel_key_loanparameter",
+                "reasoning": reasoning.strip(),
+                "needs_review": True,
+            }
+            rerouted += 1
+
+    if rerouted:
+        logger.info(
+            "dedupe_one_row_per_excel_key: rerouted %d row(s) with duplicate "
+            "matched_excel_key to LOANPARAMETER*n (all rows retained)",
+            rerouted,
+        )
+
+    _assign_slots_for_base_loanparameter(out, by_ek)
     return out
 
 
@@ -1646,22 +1826,28 @@ def finalize_mappings(
     """
     Apply final overrides and resolve numbered keys/json paths once so every
     downstream consumer sees the same final mapping output.
+
+    Includes ``dedupe_one_row_per_excel_key`` (remaps duplicate-key losers to
+    ``LOANPARAMETER*n``, does not drop rows). Callers writing Excel via
+    ``post_process_and_output`` must pass the return value as-is.
     """
     _add_scripts_to_path(settings.scripts_dir)
 
-    from matching_engine import load_references
+    from matching_engine import load_references, structured_fee_putm_bases_from_refs
     from post_processor import PostProcessor
 
-    adjusted = _apply_fee_entity_override(all_mappings)
     refs = load_references(settings.references_dir)
+    fee_putm_bases = structured_fee_putm_bases_from_refs(refs)
+    adjusted = _apply_fee_entity_override(all_mappings, fee_putm_bases)
     by_ek = refs.get("field_dictionary", {}).get("by_excel_key") or {}
     adjusted = _apply_entity_excel_key_alignment(adjusted, by_ek)
+    assign_sequential_loanparameter_slots(adjusted)
     valid_mappings = [m for m in adjusted if m.get("matched_excel_key")]
     unmatched_mappings = [m for m in adjusted if not m.get("matched_excel_key")]
 
     processor = PostProcessor(refs["field_dictionary"])
     processed_valid = processor.process_results(valid_mappings)
-    processed_valid = dedupe_one_row_per_excel_key(processed_valid)
+    processed_valid = dedupe_one_row_per_excel_key(processed_valid, by_excel_key=by_ek)
     return processed_valid + unmatched_mappings
 
 
@@ -1672,6 +1858,10 @@ def post_process_and_output(
     client_name: str,
     process_name: str,
 ) -> str:
+    """
+    Write mapping rows to Excel. Expects ``all_mappings`` already processed by
+    ``finalize_mappings`` (including duplicate-key reroute to ``LOANPARAMETER*n``).
+    """
     _add_scripts_to_path(settings.scripts_dir)
 
     try:
@@ -1683,7 +1873,6 @@ def post_process_and_output(
 
     valid_mappings     = [m for m in all_mappings if m.get("matched_excel_key")]
     unmatched_mappings = [m for m in all_mappings if not m.get("matched_excel_key")]
-    valid_mappings     = dedupe_one_row_per_excel_key(valid_mappings)
 
     if unmatched_mappings:
         logger.warning(
