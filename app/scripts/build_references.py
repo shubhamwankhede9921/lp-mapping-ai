@@ -513,6 +513,7 @@ def main() -> int:
             INNER JOIN financialForms.generic_excel_upload_definition geud
                 ON geud.id = geudf.master_id
                AND geud.upload_name = 'Individual Loan Upload v3'
+            WHERE geud.is_exclude = 0
         """, conn)
 
         putm_df = pd.read_sql("""
