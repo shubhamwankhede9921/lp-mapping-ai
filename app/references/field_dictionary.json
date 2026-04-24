@@ -3287,7 +3287,7 @@
       },
       {
         "excel_key": "APPLICANTPARTNERCENTRENAME",
-        "json_key": "loanAccount.customer.udf.userDefinedFieldValues.udf42",
+        "json_key": "loanAccount.loanAccountAdditional.partnerCentreName",
         "description": null,
         "example": null
       },
@@ -3511,6 +3511,36 @@
         "excel_key": "CKYCID",
         "json_key": "loanAccount.customer.cKYC",
         "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COAPPLICANT1DESIGNATION",
+        "json_key": "loanAccount.coapplicant.0.designation",
+        "description": "Coapplicant 1 designation",
+        "example": null
+      },
+      {
+        "excel_key": "COAPPLICANT2DESIGNATION",
+        "json_key": "loanAccount.coapplicant.1.designation",
+        "description": "Coapplicant 2 designation",
+        "example": null
+      },
+      {
+        "excel_key": "COAPPLICANT3DESIGNATION",
+        "json_key": "loanAccount.coapplicant.2.designation",
+        "description": "Coapplicant 3 designation",
+        "example": null
+      },
+      {
+        "excel_key": "COAPPLICANT4DESIGNATION",
+        "json_key": "loanAccount.coapplicant.3.designation",
+        "description": "Coapplicant 4 designation",
+        "example": null
+      },
+      {
+        "excel_key": "COAPPLICANT5DESIGNATION",
+        "json_key": "loanAccount.coapplicant.4.designation",
+        "description": "Coapplicant 5 designation",
         "example": null
       },
       {
@@ -3912,12 +3942,6 @@
       {
         "excel_key": "ENTERPRISERELATION8TYPE",
         "json_key": "loanAccount.customer.enterpriseCustomerRelations.7.relationshipType",
-        "description": null,
-        "example": null
-      },
-      {
-        "excel_key": "EXISTINGLIMITWITHSAMUNNATI",
-        "json_key": "loanAccount.customer.loanParameters",
         "description": null,
         "example": null
       },
@@ -4331,7 +4355,7 @@
       },
       {
         "excel_key": "NAMEOFBUREAU",
-        "json_key": "loanAccount.customer.customerDocuments.0.fileType",
+        "json_key": "customer.cbRemarks",
         "description": null,
         "example": null
       },
@@ -4822,6 +4846,48 @@
       {
         "excel_key": "COLLATERALVALUE",
         "json_key": "loanAccount.collateral.0..collateralValue",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONACCOUNTNUMBER",
+        "json_key": "loanAccount.collectionAccountNumber",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONACCOUNTTYPE",
+        "json_key": "loanAccount.collectionAccountType",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONBANKBRANCHNAME",
+        "json_key": "loanAccount.collectionBankBranchName",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONBANKNAME",
+        "json_key": "loanAccount.collectionBankName",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONCUSTOMERNAMEASINBANK",
+        "json_key": "loanAccount.collectionCustomerNameAsInBank",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONIFSCCODE",
+        "json_key": "loanAccount.collectionIfscCode",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONPAYMENTTYPE",
+        "json_key": "loanAccount.collectionPaymentType",
         "description": null,
         "example": null
       },
@@ -10642,6 +10708,30 @@
     ],
     "OTHERS": [
       {
+        "excel_key": "APPLICANTCOMMADDRESS1",
+        "json_key": "loanAccount.customer.mailingDoorNo",
+        "description": "Communation address line 1",
+        "example": "HNO 1-6-DA0010 NARSAMPET"
+      },
+      {
+        "excel_key": "APPLICANTCOMMADDRESSCITY",
+        "json_key": "loanAccount.customer.mailingDistrict",
+        "description": "Communation address city",
+        "example": "Mahabubabad"
+      },
+      {
+        "excel_key": "APPLICANTEXISTINGEMI",
+        "json_key": "loanAccount.estimatedEmi",
+        "description": null,
+        "example": "Cement"
+      },
+      {
+        "excel_key": "APPLICANTNAMEINBANKACCOUNT",
+        "json_key": "loanAccount.customer.customerBankAccounts.0.customerNameAsInBank",
+        "description": null,
+        "example": "VEMULA YAKAMBRAM"
+      },
+      {
         "excel_key": "COAPPLICANT1EMAIL",
         "json_key": "loanAccount.coapplicant.0.email",
         "description": null,
@@ -10658,6 +10748,12 @@
         "json_key": "loanAccount.coapplicant.1.enterprise.companyEmailId",
         "description": null,
         "example": "vemulasravani789@gmail.com"
+      },
+      {
+        "excel_key": "COAPPLICANT2PERMCITY",
+        "json_key": "loanAccount.coapplicant.1.district",
+        "description": null,
+        "example": "Warangal"
       }
     ]
   },
@@ -11569,6 +11665,20 @@
         "example": null
       },
       {
+        "excel_key": "APPLICANTCOMMADDRESS1",
+        "json_key": "loanAccount.customer.mailingDoorNo",
+        "role": "OTHERS",
+        "description": "Communation address line 1",
+        "example": "HNO 1-6-DA0010 NARSAMPET"
+      },
+      {
+        "excel_key": "APPLICANTCOMMADDRESSCITY",
+        "json_key": "loanAccount.customer.mailingDistrict",
+        "role": "OTHERS",
+        "description": "Communation address city",
+        "example": "Mahabubabad"
+      },
+      {
         "excel_key": "APPLICANTCOMMADDRESSDISTRICT",
         "json_key": "loanAccount.customer.mailingDistrict",
         "role": "CUSTOMER",
@@ -11749,6 +11859,13 @@
         "role": "CUSTOMER",
         "description": null,
         "example": null
+      },
+      {
+        "excel_key": "APPLICANTEXISTINGEMI",
+        "json_key": "loanAccount.estimatedEmi",
+        "role": "OTHERS",
+        "description": null,
+        "example": "Cement"
       },
       {
         "excel_key": "APPLICANTEXISTINGLOAN",
@@ -12633,6 +12750,13 @@
         "example": "Sita"
       },
       {
+        "excel_key": "APPLICANTNAMEINBANKACCOUNT",
+        "json_key": "loanAccount.customer.customerBankAccounts.0.customerNameAsInBank",
+        "role": "OTHERS",
+        "description": null,
+        "example": "VEMULA YAKAMBRAM"
+      },
+      {
         "excel_key": "APPLICANTOBLIGATIONALL",
         "json_key": "loanAccount.customer.totalExistingObligations",
         "role": "CUSTOMER",
@@ -12704,7 +12828,7 @@
       },
       {
         "excel_key": "APPLICANTPARTNERCENTRENAME",
-        "json_key": "loanAccount.customer.udf.userDefinedFieldValues.udf42",
+        "json_key": "loanAccount.loanAccountAdditional.partnerCentreName",
         "role": "CUSTOMER",
         "description": null,
         "example": null
@@ -13277,6 +13401,13 @@
         "example": "1990-12-25"
       },
       {
+        "excel_key": "COAPPLICANT1DESIGNATION",
+        "json_key": "loanAccount.coapplicant.0.designation",
+        "role": "CUSTOMER",
+        "description": "Coapplicant 1 designation",
+        "example": null
+      },
+      {
         "excel_key": "COAPPLICANT1DISTRICT",
         "json_key": "loanAccount.coapplicant.0.district",
         "role": "COAPPLICANT",
@@ -13753,6 +13884,13 @@
         "example": null
       },
       {
+        "excel_key": "COAPPLICANT2DESIGNATION",
+        "json_key": "loanAccount.coapplicant.1.designation",
+        "role": "CUSTOMER",
+        "description": "Coapplicant 2 designation",
+        "example": null
+      },
+      {
         "excel_key": "COAPPLICANT2DISTRICT",
         "json_key": "loanAccount.coapplicant.1.district",
         "role": "COAPPLICANT",
@@ -13975,6 +14113,13 @@
         "role": "COAPPLICANT",
         "description": null,
         "example": null
+      },
+      {
+        "excel_key": "COAPPLICANT2PERMCITY",
+        "json_key": "loanAccount.coapplicant.1.district",
+        "role": "OTHERS",
+        "description": null,
+        "example": "Warangal"
       },
       {
         "excel_key": "COAPPLICANT2PERSONALDISCUSSIONCOMMENTS",
@@ -14206,6 +14351,13 @@
         "role": "COAPPLICANT",
         "description": "Coapplicant 3 date of brith",
         "example": "1990-12-25"
+      },
+      {
+        "excel_key": "COAPPLICANT3DESIGNATION",
+        "json_key": "loanAccount.coapplicant.2.designation",
+        "role": "CUSTOMER",
+        "description": "Coapplicant 3 designation",
+        "example": null
       },
       {
         "excel_key": "COAPPLICANT3DISTRICT",
@@ -14600,6 +14752,13 @@
         "example": "1990-12-25"
       },
       {
+        "excel_key": "COAPPLICANT4DESIGNATION",
+        "json_key": "loanAccount.coapplicant.3.designation",
+        "role": "CUSTOMER",
+        "description": "Coapplicant 4 designation",
+        "example": null
+      },
+      {
         "excel_key": "COAPPLICANT4DISTRICT",
         "json_key": "loanAccount.coapplicant.3.district",
         "role": "COAPPLICANT",
@@ -14891,6 +15050,13 @@
         "json_key": "loanAccount.coapplicant.4.oldCustomerId",
         "role": "COAPPLICANT",
         "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COAPPLICANT5DESIGNATION",
+        "json_key": "loanAccount.coapplicant.4.designation",
+        "role": "CUSTOMER",
+        "description": "Coapplicant 5 designation",
         "example": null
       },
       {
@@ -15239,6 +15405,55 @@
       {
         "excel_key": "COLLATERALVALUE",
         "json_key": "loanAccount.collateral.0..collateralValue",
+        "role": "LOAN",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONACCOUNTNUMBER",
+        "json_key": "loanAccount.collectionAccountNumber",
+        "role": "LOAN",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONACCOUNTTYPE",
+        "json_key": "loanAccount.collectionAccountType",
+        "role": "LOAN",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONBANKBRANCHNAME",
+        "json_key": "loanAccount.collectionBankBranchName",
+        "role": "LOAN",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONBANKNAME",
+        "json_key": "loanAccount.collectionBankName",
+        "role": "LOAN",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONCUSTOMERNAMEASINBANK",
+        "json_key": "loanAccount.collectionCustomerNameAsInBank",
+        "role": "LOAN",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONIFSCCODE",
+        "json_key": "loanAccount.collectionIfscCode",
+        "role": "LOAN",
+        "description": null,
+        "example": null
+      },
+      {
+        "excel_key": "COLLECTIONPAYMENTTYPE",
+        "json_key": "loanAccount.collectionPaymentType",
         "role": "LOAN",
         "description": null,
         "example": null
@@ -17003,13 +17218,6 @@
       {
         "excel_key": "ENTERPRISERELATION8TYPE",
         "json_key": "loanAccount.customer.enterpriseCustomerRelations.7.relationshipType",
-        "role": "CUSTOMER",
-        "description": null,
-        "example": null
-      },
-      {
-        "excel_key": "EXISTINGLIMITWITHSAMUNNATI",
-        "json_key": "loanAccount.customer.loanParameters",
         "role": "CUSTOMER",
         "description": null,
         "example": null
@@ -20131,7 +20339,7 @@
       },
       {
         "excel_key": "NAMEOFBUREAU",
-        "json_key": "loanAccount.customer.customerDocuments.0.fileType",
+        "json_key": "customer.cbRemarks",
         "role": "CUSTOMER",
         "description": null,
         "example": null
@@ -25421,6 +25629,16 @@
         "ORIGINATION"
       ]
     },
+    "COAPPLICANT2PERMCITY": {
+      "json_key": "loanAccount.coapplicant.1.district",
+      "role": "OTHERS",
+      "description": null,
+      "example": "Warangal",
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
     "COAPPLICANT2PIN": {
       "json_key": "loanAccount.coapplicant.1.pincode",
       "role": "COAPPLICANT",
@@ -25591,6 +25809,16 @@
         "ORIGINATION"
       ]
     },
+    "APPLICANTCOMMADDRESSCITY": {
+      "json_key": "loanAccount.customer.mailingDistrict",
+      "role": "OTHERS",
+      "description": "Communation address city",
+      "example": "Mahabubabad",
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
     "APPLICANTCOMMADDRESSSTATE": {
       "json_key": "loanAccount.customer.mailingState",
       "role": "CUSTOMER",
@@ -25601,11 +25829,31 @@
         "ORIGINATION"
       ]
     },
+    "APPLICANTEXISTINGEMI": {
+      "json_key": "loanAccount.estimatedEmi",
+      "role": "OTHERS",
+      "description": null,
+      "example": "Cement",
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
     "APPLICANTOBLIGATIONALL": {
       "json_key": "loanAccount.customer.totalExistingObligations",
       "role": "CUSTOMER",
       "description": null,
       "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "APPLICANTNAMEINBANKACCOUNT": {
+      "json_key": "loanAccount.customer.customerBankAccounts.0.customerNameAsInBank",
+      "role": "OTHERS",
+      "description": null,
+      "example": "VEMULA YAKAMBRAM",
       "process_name": "ORIGINATION",
       "process_names": [
         "ORIGINATION"
@@ -26225,7 +26473,7 @@
       ]
     },
     "APPLICANTPARTNERCENTRENAME": {
-      "json_key": "loanAccount.customer.udf.userDefinedFieldValues.udf42",
+      "json_key": "loanAccount.loanAccountAdditional.partnerCentreName",
       "role": "CUSTOMER",
       "description": null,
       "example": null,
@@ -28801,16 +29049,6 @@
       ]
     },
     "AUDITEDFINANCIALS": {
-      "json_key": "loanAccount.customer.loanParameters",
-      "role": "CUSTOMER",
-      "description": null,
-      "example": null,
-      "process_name": "ORIGINATION",
-      "process_names": [
-        "ORIGINATION"
-      ]
-    },
-    "EXISTINGLIMITWITHSAMUNNATI": {
       "json_key": "loanAccount.customer.loanParameters",
       "role": "CUSTOMER",
       "description": null,
@@ -34396,6 +34634,16 @@
       "role": "CUSTOMER",
       "description": null,
       "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "APPLICANTCOMMADDRESS1": {
+      "json_key": "loanAccount.customer.mailingDoorNo",
+      "role": "OTHERS",
+      "description": "Communation address line 1",
+      "example": "HNO 1-6-DA0010 NARSAMPET",
       "process_name": "ORIGINATION",
       "process_names": [
         "ORIGINATION"
@@ -40662,6 +40910,126 @@
       "process_names": [
         "ORIGINATION"
       ]
+    },
+    "COAPPLICANT1DESIGNATION": {
+      "json_key": "loanAccount.coapplicant.0.designation",
+      "role": "CUSTOMER",
+      "description": "Coapplicant 1 designation",
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "COAPPLICANT2DESIGNATION": {
+      "json_key": "loanAccount.coapplicant.1.designation",
+      "role": "CUSTOMER",
+      "description": "Coapplicant 2 designation",
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "COAPPLICANT3DESIGNATION": {
+      "json_key": "loanAccount.coapplicant.2.designation",
+      "role": "CUSTOMER",
+      "description": "Coapplicant 3 designation",
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "COAPPLICANT4DESIGNATION": {
+      "json_key": "loanAccount.coapplicant.3.designation",
+      "role": "CUSTOMER",
+      "description": "Coapplicant 4 designation",
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "COAPPLICANT5DESIGNATION": {
+      "json_key": "loanAccount.coapplicant.4.designation",
+      "role": "CUSTOMER",
+      "description": "Coapplicant 5 designation",
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "COLLECTIONCUSTOMERNAMEASINBANK": {
+      "json_key": "loanAccount.collectionCustomerNameAsInBank",
+      "role": "LOAN",
+      "description": null,
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "COLLECTIONPAYMENTTYPE": {
+      "json_key": "loanAccount.collectionPaymentType",
+      "role": "LOAN",
+      "description": null,
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "COLLECTIONACCOUNTNUMBER": {
+      "json_key": "loanAccount.collectionAccountNumber",
+      "role": "LOAN",
+      "description": null,
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "COLLECTIONACCOUNTTYPE": {
+      "json_key": "loanAccount.collectionAccountType",
+      "role": "LOAN",
+      "description": null,
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "COLLECTIONIFSCCODE": {
+      "json_key": "loanAccount.collectionIfscCode",
+      "role": "LOAN",
+      "description": null,
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "COLLECTIONBANKNAME": {
+      "json_key": "loanAccount.collectionBankName",
+      "role": "LOAN",
+      "description": null,
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
+    },
+    "COLLECTIONBANKBRANCHNAME": {
+      "json_key": "loanAccount.collectionBankBranchName",
+      "role": "LOAN",
+      "description": null,
+      "example": null,
+      "process_name": "ORIGINATION",
+      "process_names": [
+        "ORIGINATION"
+      ]
     }
   },
   "all_excel_keys": [
@@ -40706,6 +41074,8 @@
     "APPLICANTBUSINESSTYPE",
     "APPLICANTCASTE",
     "APPLICANTCHEQUEBOUNCE",
+    "APPLICANTCOMMADDRESS1",
+    "APPLICANTCOMMADDRESSCITY",
     "APPLICANTCOMMADDRESSDISTRICT",
     "APPLICANTCOMMADDRESSDOORNO",
     "APPLICANTCOMMADDRESSLOCALITY",
@@ -40732,6 +41102,7 @@
     "APPLICANTDATEOFBIRTH",
     "APPLICANTDESIGNATION",
     "APPLICANTEMAILID",
+    "APPLICANTEXISTINGEMI",
     "APPLICANTEXISTINGLOAN",
     "APPLICANTFATHERNAME",
     "APPLICANTFEEPERCENTAGE",
@@ -40858,6 +41229,7 @@
     "APPLICANTMIDDLEAME",
     "APPLICANTMOBILENO",
     "APPLICANTMOTHERNAME",
+    "APPLICANTNAMEINBANKACCOUNT",
     "APPLICANTOBLIGATIONALL",
     "APPLICANTOCCUPATION",
     "APPLICANTOCCUPATION2",
@@ -40956,6 +41328,7 @@
     "COAPPLICANT1COUNTRY",
     "COAPPLICANT1CUSTOMERID",
     "COAPPLICANT1DATEOFBIRTH",
+    "COAPPLICANT1DESIGNATION",
     "COAPPLICANT1DISTRICT",
     "COAPPLICANT1DOB",
     "COAPPLICANT1EMAIL",
@@ -41024,6 +41397,7 @@
     "COAPPLICANT2CUSTOMERID",
     "COAPPLICANT2CUSTOMERTYPE",
     "COAPPLICANT2DATEOFBIRTH",
+    "COAPPLICANT2DESIGNATION",
     "COAPPLICANT2DISTRICT",
     "COAPPLICANT2DOB",
     "COAPPLICANT2DOCUMENT1",
@@ -41056,6 +41430,7 @@
     "COAPPLICANT2OFFICEEMAIL",
     "COAPPLICANT2PAN",
     "COAPPLICANT2PANNO",
+    "COAPPLICANT2PERMCITY",
     "COAPPLICANT2PERSONALDISCUSSIONCOMMENTS",
     "COAPPLICANT2PHOTO",
     "COAPPLICANT2PIN",
@@ -41089,6 +41464,7 @@
     "COAPPLICANT3COUNTRY",
     "COAPPLICANT3CUSTOMERID",
     "COAPPLICANT3DATEOFBIRTH",
+    "COAPPLICANT3DESIGNATION",
     "COAPPLICANT3DISTRICT",
     "COAPPLICANT3DOCUMENT1",
     "COAPPLICANT3DOCUMENT1NAME",
@@ -41145,6 +41521,7 @@
     "COAPPLICANT4COUNTRY",
     "COAPPLICANT4CUSTOMERID",
     "COAPPLICANT4DATEOFBIRTH",
+    "COAPPLICANT4DESIGNATION",
     "COAPPLICANT4DISTRICT",
     "COAPPLICANT4DOCUMENT1",
     "COAPPLICANT4DOCUMENT1NAME",
@@ -41187,6 +41564,7 @@
     "COAPPLICANT4STATE",
     "COAPPLICANT4TITLE",
     "COAPPLICANT5CUSTOMERID",
+    "COAPPLICANT5DESIGNATION",
     "COAPPLICANT6CUSTOMERID",
     "COAPPLICANT7CUSTOMERID",
     "COAPPLICANT8CUSTOMERID",
@@ -41237,6 +41615,13 @@
     "COINOTYPE",
     "COINUMBER",
     "COLLATERALVALUE",
+    "COLLECTIONACCOUNTNUMBER",
+    "COLLECTIONACCOUNTTYPE",
+    "COLLECTIONBANKBRANCHNAME",
+    "COLLECTIONBANKNAME",
+    "COLLECTIONCUSTOMERNAMEASINBANK",
+    "COLLECTIONIFSCCODE",
+    "COLLECTIONPAYMENTTYPE",
     "COMMERCIALCIBIL",
     "CORRESPONDENCEADDRESSNUMBER",
     "CORRESPONDENCEADDRESSTYPE",
@@ -41513,7 +41898,6 @@
     "ENTERPRISERELATION7TYPE",
     "ENTERPRISERELATION8CUSTOMERID",
     "ENTERPRISERELATION8TYPE",
-    "EXISTINGLIMITWITHSAMUNNATI",
     "EXPECTEDDISBURSEMENTAMOUNT",
     "FAMILYINCOMEEARNED",
     "FAMILYINCOMEFREQUENCY",
@@ -42422,19 +42806,19 @@
     "tenure"
   ],
   "metadata": {
-    "total": 1775,
+    "total": 1791,
     "by_role_count": {
       "COAPPLICANT": 360,
-      "CUSTOMER": 405,
+      "CUSTOMER": 409,
       "GUARANTOR": 7,
-      "LOAN": 1000,
-      "OTHERS": 3
+      "LOAN": 1007,
+      "OTHERS": 8
     },
     "by_process_count": {
       "ENROLLMENT": 96,
-      "ORIGINATION": 1679
+      "ORIGINATION": 1695
     },
-    "generated_at": "2026-04-14T06:35:56.594304Z",
+    "generated_at": "2026-04-23T10:37:14.512343Z",
     "source": "putm_upload_api_excel_json_mapping"
   }
 }

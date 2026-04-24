@@ -3,7 +3,7 @@
     "partnercode": {
       "target_excel_key": "PARTNERCODE",
       "target_json_key": "loanAccount.partnerCode",
-      "frequency": 107,
+      "frequency": 106,
       "variants": [
         "PARTNERCODE",
         "Partner Code",
@@ -16,7 +16,7 @@
     "productcode": {
       "target_excel_key": "PRODUCTCODE",
       "target_json_key": "loanAccount.productCode",
-      "frequency": 103,
+      "frequency": 102,
       "variants": [
         "PRODUCT CODE",
         "PRODUCTCODE",
@@ -30,7 +30,7 @@
     "loanid": {
       "target_excel_key": "LOANID",
       "target_json_key": "loanAccount.oldAccountNO",
-      "frequency": 90,
+      "frequency": 89,
       "variants": [
         "LOAN id",
         "LOANID",
@@ -65,7 +65,7 @@
     "loanapplicationdate": {
       "target_excel_key": "LOANAPPLICATIONDATE",
       "target_json_key": "loanAccount.loanApplicationDate",
-      "frequency": 98,
+      "frequency": 97,
       "variants": [
         "LOAN APPLICATION DATE",
         "LOANAPPLICATIONDATE",
@@ -131,7 +131,7 @@
     "interestrate": {
       "target_excel_key": "INTERESTRATE",
       "target_json_key": "loanAccount.interestRate",
-      "frequency": 105,
+      "frequency": 104,
       "variants": [
         "INTERESTRATE",
         "INTEREST_RATE",
@@ -156,7 +156,7 @@
     "dateofmaturity": {
       "target_excel_key": "DATEOFMATURITY",
       "target_json_key": "loanAccount.loanAccountAdditional.maturityDate",
-      "frequency": 50,
+      "frequency": 49,
       "variants": [
         "DATEOFMATURITY",
         "Date Of Maturity",
@@ -290,10 +290,11 @@
     "applicantdateofbirth": {
       "target_excel_key": "APPLICANTDATEOFBIRTH",
       "target_json_key": "loanAccount.customer.dateOfBirth",
-      "frequency": 12,
+      "frequency": 14,
       "variants": [
         "APPLICANTDATEOFBIRTH",
-        "Applicant Date Of Birth"
+        "Applicant Date Of Birth",
+        "ApplicantdateOfBirth"
       ],
       "entity_context": "LOAN_COAPPLICANT1",
       "confidence_tier": "tier2"
@@ -384,7 +385,7 @@
     "enterprisebusinessconstitution": {
       "target_excel_key": "ENTERPRISEBUSINESSCONSTITUTION",
       "target_json_key": "loanAccount.customer.businessConstitution",
-      "frequency": 4,
+      "frequency": 3,
       "variants": [
         "ENTERPRISE BUSINESS CONSTITUTION",
         "ENTERPRISEBUSINESSCONSTITUTION",
@@ -406,7 +407,7 @@
     "customerid": {
       "target_excel_key": "CUSTOMERID",
       "target_json_key": "loanAccount.customFields.customerId",
-      "frequency": 68,
+      "frequency": 67,
       "variants": [
         "CUSTOMERID",
         "Customer Id",
@@ -442,7 +443,7 @@
     "coapplicant2id": {
       "target_excel_key": "COAPPLICANT2ID",
       "target_json_key": "loanAccount.customFields.coapplicant2Id",
-      "frequency": 10,
+      "frequency": 12,
       "variants": [
         "COAPPLICANT2ID",
         "coapplicant2ID"
@@ -603,9 +604,8 @@
     "businessdescription": {
       "target_excel_key": "BUSINESSDESCRIPTION",
       "target_json_key": "loanAccount.customer.businessDescription",
-      "frequency": 2,
+      "frequency": 1,
       "variants": [
-        "BUSINESSDESCRIPTION",
         "Business Description"
       ],
       "entity_context": "CUSTOMER_DETAILS_LEFT",
@@ -684,7 +684,7 @@
     "gstnumber": {
       "target_excel_key": "GSTNUMBER",
       "target_json_key": "loanAccount.customer.enterpriseRegistrations.0.registrationNumber",
-      "frequency": 36,
+      "frequency": 35,
       "variants": [
         "GST Number",
         "GSTNumber",
@@ -696,7 +696,7 @@
     "gstlink": {
       "target_excel_key": "GSTLINK",
       "target_json_key": "loanAccount.customer.enterpriseRegistrations.0.documentId",
-      "frequency": 11,
+      "frequency": 10,
       "variants": [
         "GSTLINK",
         "GSTLink"
@@ -707,7 +707,7 @@
     "applicantcustomerudyamno": {
       "target_excel_key": "APPLICANTCUSTOMERUDYAMNO",
       "target_json_key": "loanAccount.customer.enterpriseRegistrations.1.registrationNumber",
-      "frequency": 8,
+      "frequency": 7,
       "variants": [
         "APPLICANTCUSTOMERUDYAMNO",
         "Applicant Customer UdyamNo"
@@ -718,14 +718,14 @@
     "udyamcertificatelink": {
       "target_excel_key": "UDYAMCERTIFICATELINK",
       "target_json_key": "loanAccount.customer.enterpriseRegistrations.1.documentId",
-      "frequency": 11,
+      "frequency": 10,
       "variants": [
         "UDYAMCERTIFICATELINK",
         "Udyam Certificate Link",
         "Udyam CertificateLink",
         "udyamCertificateLink"
       ],
-      "entity_context": "View Uploads",
+      "entity_context": "PRELIMINARY_LOAN_INFORMATION_LEFT",
       "confidence_tier": "tier2"
     },
     "applicantbusinessaddress1": {
@@ -815,7 +815,7 @@
     "abb": {
       "target_excel_key": "ABB",
       "target_json_key": "loanAccount.customer.customerBankAccounts.0.bankStatement.0.averageBankBalance",
-      "frequency": 14,
+      "frequency": 13,
       "variants": [
         "ABB",
         "abb"
@@ -826,7 +826,7 @@
     "ifsccode": {
       "target_excel_key": "IFSCCODE",
       "target_json_key": "loanAccount.customer.customerBankAccounts.0.ifscCode",
-      "frequency": 56,
+      "frequency": 55,
       "variants": [
         "IFSC Code",
         "IFSCCODE",
@@ -1218,16 +1218,6 @@
       "entity_context": "LOAN_SECTION_PAYLOADS_DATATABLE_TEST",
       "confidence_tier": "tier4"
     },
-    "existinglimitwithsamunnati": {
-      "target_excel_key": "EXISTINGLIMITWITHSAMUNNATI",
-      "target_json_key": "loanAccount.loanParameters.20.value",
-      "frequency": 1,
-      "variants": [
-        "Existing Limit With SAMUNNATI"
-      ],
-      "entity_context": null,
-      "confidence_tier": "tier4"
-    },
     "currentdpdwithsamunnati": {
       "target_excel_key": "CURRENTDPDWITHSAMUNNATI",
       "target_json_key": "loanAccount.loanParameters.21.value",
@@ -1303,9 +1293,8 @@
     "applicantloantype": {
       "target_excel_key": "APPLICANTLOANTYPE",
       "target_json_key": "loanAccount.loanType",
-      "frequency": 2,
+      "frequency": 1,
       "variants": [
-        "APPLICANTLOANTYPE",
         "Applicant Loan Type"
       ],
       "entity_context": "PRELIMINARY_LOAN_INFORMATION_LEFT",
@@ -1346,7 +1335,7 @@
     "tenure": {
       "target_excel_key": "tenure",
       "target_json_key": "loanAccount.tenure",
-      "frequency": 64,
+      "frequency": 63,
       "variants": [
         "Tenure",
         "tenure"
@@ -1996,7 +1985,7 @@
     "isloanupdate": {
       "target_excel_key": "ISLOANUPDATE",
       "target_json_key": "loanAccount.isLoanUpdate",
-      "frequency": 90,
+      "frequency": 89,
       "variants": [
         "ISLOANUPDATE",
         "Is Loan Update",
@@ -2008,7 +1997,7 @@
     "firstname": {
       "target_excel_key": "APPLICANTCUSTOMERNAME",
       "target_json_key": "loanAccount.firstName",
-      "frequency": 44,
+      "frequency": 41,
       "variants": [
         "First Name",
         "firstName"
@@ -2019,7 +2008,7 @@
     "mobilenumber": {
       "target_excel_key": "APPLICANTCUSTOMERMOBILENO",
       "target_json_key": "loanAccount.mobilePhone",
-      "frequency": 56,
+      "frequency": 53,
       "variants": [
         "MOBILENUMBER",
         "Mobile Number",
@@ -2031,7 +2020,7 @@
     "gender": {
       "target_excel_key": "APPLICANTCUSTOMERGENDER",
       "target_json_key": "loanAccount.gender",
-      "frequency": 57,
+      "frequency": 54,
       "variants": [
         "GENDER",
         "Gender",
@@ -2043,7 +2032,7 @@
     "dob": {
       "target_excel_key": "APPLICANTDATEOFBIRTH",
       "target_json_key": "loanAccount.dateOfBirth",
-      "frequency": 39,
+      "frequency": 38,
       "variants": [
         "DOB"
       ],
@@ -2053,7 +2042,7 @@
     "maritalstatus": {
       "target_excel_key": "APPLICANTCUSTOMERMARITALSTATUS",
       "target_json_key": "loanAccount.maritalStatus",
-      "frequency": 57,
+      "frequency": 54,
       "variants": [
         "MARITALSTATUS",
         "Marital Status",
@@ -2065,7 +2054,7 @@
     "fathername": {
       "target_excel_key": "APPLICANTFATHERNAME",
       "target_json_key": "loanAccount.fatherFirstName",
-      "frequency": 44,
+      "frequency": 41,
       "variants": [
         "FATHERNAME",
         "Father name",
@@ -2078,7 +2067,7 @@
     "mothername": {
       "target_excel_key": "APPLICANTMOTHERNAME",
       "target_json_key": "loanAccount.motherName",
-      "frequency": 39,
+      "frequency": 38,
       "variants": [
         "MOTHERNAME",
         "Mother name",
@@ -2091,7 +2080,7 @@
     "spousename": {
       "target_excel_key": "APPLICANTSPOUSENAME",
       "target_json_key": "loanAccount.spouseFirstName",
-      "frequency": 43,
+      "frequency": 42,
       "variants": [
         "SPOUSENAME",
         "Spouse name",
@@ -2127,7 +2116,7 @@
     "pannumber": {
       "target_excel_key": "APPLICANTCUSTOMERPANNO",
       "target_json_key": "loanAccount.panNo",
-      "frequency": 51,
+      "frequency": 48,
       "variants": [
         "PAN Number",
         "PANNUMBER",
@@ -2140,7 +2129,7 @@
     "pincode": {
       "target_excel_key": "APPLICANTCUSTOMERPINCODE",
       "target_json_key": "loanAccount.pincode",
-      "frequency": 44,
+      "frequency": 43,
       "variants": [
         "PINCODE",
         "Pin Code",
@@ -2154,7 +2143,7 @@
     "cibilscore": {
       "target_excel_key": "CBSCORE",
       "target_json_key": "loanAccount.creditBureauScore",
-      "frequency": 43,
+      "frequency": 42,
       "variants": [
         "CIBIL Score",
         "CIBIL score",
@@ -2166,7 +2155,7 @@
     "frequency": {
       "target_excel_key": "REPAYMENTFREQUENCY",
       "target_json_key": "loanAccount.frequency",
-      "frequency": 53,
+      "frequency": 52,
       "variants": [
         "Frequency",
         "frequency"
@@ -2177,7 +2166,7 @@
     "firstemidate": {
       "target_excel_key": "APPLICANTFIRSTREPAYMENTDATE",
       "target_json_key": "loanAccount.firstRepaymentDate",
-      "frequency": 46,
+      "frequency": 45,
       "variants": [
         "FIRSTEMIDATE",
         "First EMI Date",
@@ -2213,7 +2202,7 @@
     "loanamount": {
       "target_excel_key": "LOANAMT",
       "target_json_key": "loanAccount.loanAmount",
-      "frequency": 72,
+      "frequency": 71,
       "variants": [
         "LOANAMOUNT",
         "LOAN_AMOUNT",
@@ -2227,7 +2216,7 @@
     "purpose": {
       "target_excel_key": "LOANPURPOSE1",
       "target_json_key": "loanAccount.loanPurpose1",
-      "frequency": 44,
+      "frequency": 43,
       "variants": [
         "Purpose",
         "purpose"
@@ -2238,7 +2227,7 @@
     "lastname": {
       "target_excel_key": "APPLICANTLASTNAME",
       "target_json_key": "loanAccount.lastName",
-      "frequency": 40,
+      "frequency": 37,
       "variants": [
         "Last Name",
         "lastName"
@@ -2249,7 +2238,7 @@
     "middlename": {
       "target_excel_key": "APPLICANTMIDDLEAME",
       "target_json_key": "loanAccount.middleName",
-      "frequency": 32,
+      "frequency": 31,
       "variants": [
         "Middle Name",
         "middleName"
@@ -2260,7 +2249,7 @@
     "emailid": {
       "target_excel_key": "APPLICANTEMAILID",
       "target_json_key": "loanAccount.emailId",
-      "frequency": 34,
+      "frequency": 33,
       "variants": [
         "Email ID",
         "Email Id",
@@ -2272,7 +2261,7 @@
     "loandisbursementdate": {
       "target_excel_key": "DATEOFDISBURSEMENT",
       "target_json_key": "loanAccount.loanDisbursementDate",
-      "frequency": 44,
+      "frequency": 43,
       "variants": [
         "Loan Disbursement Date",
         "loanDisbursementDate"
@@ -2283,12 +2272,12 @@
     "aadharimage": {
       "target_excel_key": "APPLICANTKYC1IMAGE",
       "target_json_key": "loanAccount.aadharImage",
-      "frequency": 30,
+      "frequency": 29,
       "variants": [
         "Aadhar Image"
       ],
       "entity_context": "View Uploads",
-      "confidence_tier": "tier1"
+      "confidence_tier": "tier2"
     },
     "aadhartype": {
       "target_excel_key": "APPLICANTKYC1TYPE",
@@ -2301,9 +2290,9 @@
       "confidence_tier": "tier3"
     },
     "aadharnumber": {
-      "target_excel_key": "APPLICANTKYC1NUMBER",
+      "target_excel_key": "LOANPARAMETER149",
       "target_json_key": "loanAccount.aadharNumber",
-      "frequency": 40,
+      "frequency": 37,
       "variants": [
         "AADHARNUMBER",
         "Aadhar Number",
@@ -2315,7 +2304,7 @@
     "addressline1": {
       "target_excel_key": "APPLICANTBUSINESSADDRESS1",
       "target_json_key": "loanAccount.addressLine1",
-      "frequency": 35,
+      "frequency": 34,
       "variants": [
         "Address Line 1",
         "Address Line1",
@@ -2327,7 +2316,7 @@
     "addressline2": {
       "target_excel_key": "APPLICANTBUSINESSADDRESS2",
       "target_json_key": "loanAccount.addressLine2",
-      "frequency": 35,
+      "frequency": 34,
       "variants": [
         "Address Line 2",
         "Address Line2",
@@ -2339,7 +2328,7 @@
     "addressline3": {
       "target_excel_key": "APPLICANTBUSINESSADDRESS3",
       "target_json_key": "loanAccount.addressLine3",
-      "frequency": 32,
+      "frequency": 31,
       "variants": [
         "Address Line 3",
         "Address Line3",
@@ -2351,7 +2340,7 @@
     "state": {
       "target_excel_key": "APPLICANTSTATE",
       "target_json_key": "loanAccount.state",
-      "frequency": 41,
+      "frequency": 40,
       "variants": [
         "STATE",
         "State",
@@ -2363,7 +2352,7 @@
     "city": {
       "target_excel_key": "APPLICANTCUSTOMERDISTRICT",
       "target_json_key": "loanAccount.city",
-      "frequency": 46,
+      "frequency": 45,
       "variants": [
         "City",
         "city"
@@ -2374,7 +2363,7 @@
     "consentforcreditbureau": {
       "target_excel_key": "LOANPARAMETER1",
       "target_json_key": "loanAccount.concentForCreditCheck",
-      "frequency": 20,
+      "frequency": 19,
       "variants": [
         "Consent for Credit Bureau"
       ],
@@ -2384,7 +2373,7 @@
     "consentforwhatsappnotification": {
       "target_excel_key": "LOANPARAMETER2",
       "target_json_key": "loanAccount.concentForWhatsapp",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Consent for Whatsapp notification"
       ],
@@ -2394,7 +2383,7 @@
     "aadharvalidation": {
       "target_excel_key": "LOANPARAMETER3",
       "target_json_key": "loanAccount.aadharValidation",
-      "frequency": 21,
+      "frequency": 20,
       "variants": [
         "Aadhar Validation",
         "Aadhar validation"
@@ -2405,7 +2394,7 @@
     "addressfromaadhaar": {
       "target_excel_key": "LOANPARAMETER4",
       "target_json_key": "loanAccount.addressFromAadhar",
-      "frequency": 21,
+      "frequency": 20,
       "variants": [
         "Address from Aadhaar"
       ],
@@ -2415,7 +2404,7 @@
     "panverified": {
       "target_excel_key": "LOANPARAMETER5",
       "target_json_key": "loanAccount.panVerified",
-      "frequency": 22,
+      "frequency": 21,
       "variants": [
         "PAN verified",
         "panVerified"
@@ -2426,7 +2415,7 @@
     "firstnameasperpan": {
       "target_excel_key": "LOANPARAMETER6",
       "target_json_key": "loanAccount.firstNameAsPerPan",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Firstname as per PAN"
       ],
@@ -2436,7 +2425,7 @@
     "lastnameasperpan": {
       "target_excel_key": "LOANPARAMETER7",
       "target_json_key": "loanAccount.lastNameAsPerPan",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Lastname as per PAN"
       ],
@@ -2446,7 +2435,7 @@
     "overduetype": {
       "target_excel_key": "OVERDUETYPE",
       "target_json_key": "loanAccount.overdueType",
-      "frequency": 21,
+      "frequency": 20,
       "variants": [
         "Overdue type"
       ],
@@ -2456,7 +2445,7 @@
     "overdueamount": {
       "target_excel_key": "OVERDUEAMOUNT",
       "target_json_key": "loanAccount.overdueAmount",
-      "frequency": 26,
+      "frequency": 25,
       "variants": [
         "Over Due Amount",
         "Overdue Amount"
@@ -2467,7 +2456,7 @@
     "apr": {
       "target_excel_key": "ANNUALIZEDPERCENTAGE",
       "target_json_key": "loanAccount.apr",
-      "frequency": 59,
+      "frequency": 58,
       "variants": [
         "APR",
         "Apr",
@@ -2479,7 +2468,7 @@
     "totalrepayment": {
       "target_excel_key": "TOTALREPAYMENTAMOUNT",
       "target_json_key": "loanAccount.totalRepayment",
-      "frequency": 32,
+      "frequency": 31,
       "variants": [
         "Total Repayment"
       ],
@@ -2489,7 +2478,7 @@
     "monthlyemi": {
       "target_excel_key": "INSTALMENTAMT",
       "target_json_key": "loanAccount.monthlyEmi",
-      "frequency": 31,
+      "frequency": 30,
       "variants": [
         "Monthly EMI"
       ],
@@ -2499,21 +2488,11 @@
     "employmenttype": {
       "target_excel_key": "EMPLOYMENTSTATUS",
       "target_json_key": "loanAccount.employmentStatus",
-      "frequency": 47,
+      "frequency": 46,
       "variants": [
         "Employment Type",
         "employment Type",
         "employmentType"
-      ],
-      "entity_context": "PRELIMINARY_LOAN_INFORMATION_RIGHT",
-      "confidence_tier": "tier1"
-    },
-    "profession": {
-      "target_excel_key": "APPLICANTPROFESSION",
-      "target_json_key": "loanAccount.designation",
-      "frequency": 31,
-      "variants": [
-        "Profession"
       ],
       "entity_context": "PRELIMINARY_LOAN_INFORMATION_RIGHT",
       "confidence_tier": "tier1"
@@ -2532,7 +2511,7 @@
     "salarycreditmode": {
       "target_excel_key": "LOANPARAMETER0",
       "target_json_key": "loanAccount.salaryCreditMode",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Salary Credit Mode"
       ],
@@ -2542,7 +2521,7 @@
     "salaryfromsmsdata": {
       "target_excel_key": "LOANPARAMETER8",
       "target_json_key": "loanAccount.salaryFromSms",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Salary from SMS data"
       ],
@@ -2552,7 +2531,7 @@
     "debitcreditinfofromsms": {
       "target_excel_key": "LOANPARAMETER9",
       "target_json_key": "loanAccount.debitCreditInfo",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Debit credit info from SMS"
       ],
@@ -2562,7 +2541,7 @@
     "balanceinfofromsms": {
       "target_excel_key": "LOANPARAMETER10",
       "target_json_key": "loanAccount.balanceInfoFromSms",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Balance info from SMS"
       ],
@@ -2572,7 +2551,7 @@
     "monthlyoutgoingemi": {
       "target_excel_key": "NUMBEROFADVANCEEMI",
       "target_json_key": "loanAccount.numberOfAdvanceEmi",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Monthly Outgoing EMI"
       ],
@@ -2582,7 +2561,7 @@
     "processingfee": {
       "target_excel_key": "APPLICANTFEEPERCENTAGE",
       "target_json_key": "loanAccount.processingFeePercentage",
-      "frequency": 50,
+      "frequency": 49,
       "variants": [
         "PROCESSINGFEE",
         "Processing Fee",
@@ -2595,7 +2574,7 @@
     "isloanproceed": {
       "target_excel_key": "ISLOANPROCEED",
       "target_json_key": "loanAccount.isLoanProceed",
-      "frequency": 81,
+      "frequency": 80,
       "variants": [
         "ISLOANPROCEED",
         "Is Loan Proceed",
@@ -3114,7 +3093,7 @@
     "coapplicantstate": {
       "target_excel_key": "COAPPLICANTSTATE",
       "target_json_key": "secondary.0.aplcntCommAddrState",
-      "frequency": 19,
+      "frequency": 21,
       "variants": [
         "COAPPLICANTSTATE",
         "Co-Applicant State",
@@ -3347,13 +3326,14 @@
     "coapplicant2lastname": {
       "target_excel_key": "COAPPLICANT2LASTNAME",
       "target_json_key": "secondary.1.lastName",
-      "frequency": 2,
+      "frequency": 4,
       "variants": [
+        "COAPPLICANT2LASTNAME",
         "CoApplicant 2 Last name",
         "coapplicant2LastName"
       ],
-      "entity_context": "LOAN_COAPPLICANT",
-      "confidence_tier": "tier4"
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier3"
     },
     "coapplicant2pan": {
       "target_excel_key": "COAPPLICANT2PANNO",
@@ -3368,7 +3348,7 @@
     "coapplicant2dateofbirth": {
       "target_excel_key": "COAPPLICANT2DOB",
       "target_json_key": "secondary.1.dob",
-      "frequency": 9,
+      "frequency": 11,
       "variants": [
         "COAPPLICANT 2 DATEOFBIRTH",
         "COAPPLICANT2DATEOFBIRTH",
@@ -3376,7 +3356,7 @@
         "coapplicant2DateOfBirth"
       ],
       "entity_context": "LOAN_COAPPLICANT2",
-      "confidence_tier": "tier3"
+      "confidence_tier": "tier2"
     },
     "coapplicant2emailid": {
       "target_excel_key": "COAPPLICANT2EMAIL",
@@ -3401,7 +3381,7 @@
     "coapplicant2gender": {
       "target_excel_key": "COAPPLICANT2GENDER",
       "target_json_key": "secondary.1.gender",
-      "frequency": 9,
+      "frequency": 11,
       "variants": [
         "COAPPLICANT 2 GENDER",
         "COAPPLICANT2GENDER",
@@ -3409,7 +3389,7 @@
         "coapplicant2Gender"
       ],
       "entity_context": "LOAN_COAPPLICANT2",
-      "confidence_tier": "tier3"
+      "confidence_tier": "tier2"
     },
     "coapplicant2constitution": {
       "target_excel_key": "COAPPLICANT2CONSTITUTION",
@@ -3474,13 +3454,14 @@
     "coapplicant2pincode": {
       "target_excel_key": "COAPPLICANTMAILINGADDPINCODE",
       "target_json_key": "secondary.1.aplcntCommAddrPin",
-      "frequency": 2,
+      "frequency": 4,
       "variants": [
+        "COAPPLICANT2PINCODE",
         "CoApplicant 2 Pincode",
         "coapplicant2Pincode"
       ],
-      "entity_context": "LOAN_COAPPLICANT",
-      "confidence_tier": "tier4"
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier3"
     },
     "coapplicant2city": {
       "target_excel_key": "COAPPLICANT2CITY",
@@ -3507,12 +3488,13 @@
     "coapplicant2country": {
       "target_excel_key": "COAPPLICANT2COUNTRY",
       "target_json_key": "secondary.1.aplcntCommAddrCountry",
-      "frequency": 1,
+      "frequency": 3,
       "variants": [
+        "COAPPLICANT2COUNTRY",
         "CoApplicant 2 Country"
       ],
-      "entity_context": "LOAN_COAPPLICANT",
-      "confidence_tier": "tier4"
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier3"
     },
     "coapplicant2permanentaddressline1": {
       "target_excel_key": "COAPPLICANT2BUSINESSADDRESS1",
@@ -3667,21 +3649,23 @@
     "coapplicant1maritalstatus": {
       "target_excel_key": "COAPPLICANT1MARITALSTATUS",
       "target_json_key": "secondary.0.maritalStatus",
-      "frequency": 8,
+      "frequency": 10,
       "variants": [
         "COAPPLICANT1MARITALSTATUS",
         "CoApplicant 1 Marital  Status",
         "Coapplicant 1 Marital Status",
+        "coApplicant1maritalStatus",
         "coapplicant1MaritalStatus"
       ],
       "entity_context": "LOAN_APPLICANT",
-      "confidence_tier": "tier3"
+      "confidence_tier": "tier2"
     },
     "coapplicant2maritalstatus": {
       "target_excel_key": "COAPPLICANT2MARITALSTATUS",
       "target_json_key": "secondary.1.maritalStatus",
-      "frequency": 4,
+      "frequency": 6,
       "variants": [
+        "COAPPLICANT2MARITALSTATUS",
         "CoApplicant 2 Marital  Status",
         "Coapplicant 2 Marital Status",
         "coapplicant2MaritalStatus"
@@ -3808,12 +3792,13 @@
     "coapplicant2addressproofno": {
       "target_excel_key": "COAPPLICANT2ADDRESSPROOFNO",
       "target_json_key": "secondary.1.addressproofNo",
-      "frequency": 1,
+      "frequency": 3,
       "variants": [
+        "COAPPLICANT2ADDRESSPROOFNO",
         "CoApplicant 2 Address Proof No"
       ],
-      "entity_context": "View Uploads",
-      "confidence_tier": "tier4"
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier3"
     },
     "coapplicant1identityproof": {
       "target_excel_key": "COAAPLICANT1IDENTITYPROOF",
@@ -6716,7 +6701,7 @@
     "dateofbirth": {
       "target_excel_key": "DATEOFBIRTH",
       "target_json_key": "customer.dateOfBirth",
-      "frequency": 18,
+      "frequency": 14,
       "variants": [
         "DATEOFBIRTH",
         "Date Of Birth",
@@ -6740,7 +6725,7 @@
     "netmonthlyincome": {
       "target_excel_key": "BORROWERINCOME",
       "target_json_key": "loanAccount.netMonthlyIncomeOfBorrower",
-      "frequency": 32,
+      "frequency": 31,
       "variants": [
         "Net Monthly Income",
         "netMonthly Income",
@@ -6782,7 +6767,7 @@
     "maskaadharnumber": {
       "target_excel_key": "LOANPARAMETER7",
       "target_json_key": "loanAccount.maskAadharNumber",
-      "frequency": 27,
+      "frequency": 26,
       "variants": [
         "Mask Aadhar Number",
         "maskAadharNumber"
@@ -6793,7 +6778,7 @@
     "dedupestatusmsg": {
       "target_excel_key": "LOANPARAMETER8",
       "target_json_key": "loanAccount.dedupeStatusMsg",
-      "frequency": 37,
+      "frequency": 36,
       "variants": [
         "Dedupe Status Msg",
         "dedupeStatusMsg"
@@ -6869,7 +6854,7 @@
     "livenumberofloans": {
       "target_excel_key": "LOANPARAMETER2",
       "target_json_key": "Applicant.liveNumberOfLoans",
-      "frequency": 39,
+      "frequency": 38,
       "variants": [
         "LIVENUMBEROFLOANS",
         "Live Number Of Loans",
@@ -6881,7 +6866,7 @@
     "totaloutstandingofliveloans": {
       "target_excel_key": "LOANPARAMETER3",
       "target_json_key": "Applicant.totalOutstandingOfLivesLoans",
-      "frequency": 40,
+      "frequency": 39,
       "variants": [
         "TOTALOUTSTANDINGOFLIVELOANS",
         "Total Outstanding Of Live Loans",
@@ -6924,7 +6909,7 @@
     "creditbureauname": {
       "target_excel_key": "LOANPARAMETER4",
       "target_json_key": "Applicant.creditBureauName",
-      "frequency": 38,
+      "frequency": 37,
       "variants": [
         "Credit Bureau Name",
         "creditBureauName"
@@ -6935,7 +6920,7 @@
     "cbenquirynumber": {
       "target_excel_key": "LOANPARAMETER5",
       "target_json_key": "Applicant.cbEnquiryNumber",
-      "frequency": 38,
+      "frequency": 37,
       "variants": [
         "CB Enquiry Number",
         "cbEnquiryNumber",
@@ -7322,7 +7307,7 @@
     "customerimage": {
       "target_excel_key": "APPLICANTKYC3IMAGE",
       "target_json_key": "Applicant.customerImage",
-      "frequency": 29,
+      "frequency": 28,
       "variants": [
         "Customer Image"
       ],
@@ -8831,7 +8816,7 @@
     "dpddaycb": {
       "target_excel_key": "LOANPARAMETER24",
       "target_json_key": "primary.cbDpdDay",
-      "frequency": 27,
+      "frequency": 26,
       "variants": [
         "DPD Day- CB"
       ],
@@ -8841,7 +8826,7 @@
     "totaldpdamountcb": {
       "target_excel_key": "LOANPARAMETER25",
       "target_json_key": "primary.cbDpdAmount",
-      "frequency": 22,
+      "frequency": 21,
       "variants": [
         "Total DPD Amount- CB"
       ],
@@ -8957,7 +8942,7 @@
     "foir": {
       "target_excel_key": "LOANPARAMETER39",
       "target_json_key": "primary.foir",
-      "frequency": 48,
+      "frequency": 47,
       "variants": [
         "FOIR",
         "Foir",
@@ -9011,7 +8996,7 @@
     "masdedupereferenceid": {
       "target_excel_key": "LOANPARAMETER41",
       "target_json_key": "primary.masDedupeReferenceId",
-      "frequency": 31,
+      "frequency": 30,
       "variants": [
         "MAS Dedupe Reference Id"
       ],
@@ -9103,7 +9088,7 @@
     "bankaccountnumber": {
       "target_excel_key": "CUSTOMERBANKACCOUNTNUMBER",
       "target_json_key": "primary.bankAccountNumber",
-      "frequency": 23,
+      "frequency": 22,
       "variants": [
         "Bank Account Number",
         "bankAccountNumber"
@@ -9289,6 +9274,16 @@
       "entity_context": "PRELIMINARY_LOAN_INFORMATION_RIGHT",
       "confidence_tier": "tier4"
     },
+    "profession": {
+      "target_excel_key": "APPLICANTDESIGNATION",
+      "target_json_key": "Applicant.designation",
+      "frequency": 27,
+      "variants": [
+        "Profession"
+      ],
+      "entity_context": "PRELIMINARY_LOAN_INFORMATION_RIGHT",
+      "confidence_tier": "tier2"
+    },
     "customercaste": {
       "target_excel_key": "APPLICANTCASTE",
       "target_json_key": "Applicant.customerCaste",
@@ -9382,7 +9377,7 @@
     "lastmonthcountoverdue": {
       "target_excel_key": "LOANPARAMETER11",
       "target_json_key": "Applicant.lastMonthCountOverdue",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Last Month Count Overdue"
       ],
@@ -9392,7 +9387,7 @@
     "lastmonthsumoverdue": {
       "target_excel_key": "LOANPARAMETER12",
       "target_json_key": "Applicant.lastMonthSumOverdue",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Last Month Sum Overdue"
       ],
@@ -9402,7 +9397,7 @@
     "last2moverduesumoverdueoverall": {
       "target_excel_key": "LOANPARAMETER13",
       "target_json_key": "Applicant.last2MOverdueSumOverdueOverall",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Last 2M Overdue Sum Overdue Overall",
         "Last 2M Overdue Sum overdue overall"
@@ -9413,7 +9408,7 @@
     "emibounce1m": {
       "target_excel_key": "LOANPARAMETER14",
       "target_json_key": "Applicant.emiBounce1M",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "EMI Bounce 1M"
       ],
@@ -9423,7 +9418,7 @@
     "monthsince0dpd": {
       "target_excel_key": "LOANPARAMETER15",
       "target_json_key": "Applicant.monthSince0DPD",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Month Since 0DPD",
         "Month_Since_0_DPD"
@@ -9464,7 +9459,7 @@
     "maxoverdueamountin24months": {
       "target_excel_key": "LOANPARAMETER19",
       "target_json_key": "Applicant.maxOverdueAmountIn24Months",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Max Overdue Amount in 24 Months",
         "Max Overdue Amount in 24 months"
@@ -9475,7 +9470,7 @@
     "everdpd": {
       "target_excel_key": "LOANPARAMETER20",
       "target_json_key": "Applicant.everDPD",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Ever DPD"
       ],
@@ -9485,7 +9480,7 @@
     "preclosure": {
       "target_excel_key": "LOANPARAMETER21",
       "target_json_key": "Applicant.preClosure",
-      "frequency": 19,
+      "frequency": 18,
       "variants": [
         "Pre Closure",
         "Pre-closure"
@@ -10487,7 +10482,7 @@
     "bankaccounttype": {
       "target_excel_key": "CUSTOMERBANKACCOUNTTYPE",
       "target_json_key": "Applicant.bankAccountType",
-      "frequency": 35,
+      "frequency": 34,
       "variants": [
         "Bank Account Type",
         "Bank Account type",
@@ -14928,7 +14923,7 @@
     "bureauscore": {
       "target_excel_key": "CBSCORE",
       "target_json_key": "Applicant.bureauScore",
-      "frequency": 12,
+      "frequency": 10,
       "variants": [
         "Bureau Score",
         "bureauScore"
@@ -15010,7 +15005,7 @@
     "cbfile": {
       "target_excel_key": "CUSTOMERDOCUMENT1",
       "target_json_key": "Applicant.cbFile",
-      "frequency": 26,
+      "frequency": 25,
       "variants": [
         "CB File",
         "CBFile",
@@ -15022,7 +15017,7 @@
     "cbfilename": {
       "target_excel_key": "CUSTOMERDOCUMENT1NAME",
       "target_json_key": "Applicant.cbFileName",
-      "frequency": 29,
+      "frequency": 28,
       "variants": [
         "CB File Name",
         "CB file Name",
@@ -15101,10 +15096,11 @@
     "coapplicant1firstname": {
       "target_excel_key": "COAPPLICANT1FIRSTNAME",
       "target_json_key": "coapplicant.firstName",
-      "frequency": 7,
+      "frequency": 9,
       "variants": [
         "COAPPLICANT1FIRSTNAME",
         "Coapplicant 1 First Name",
+        "coApplicant1firstName",
         "coapplicant1FirstName"
       ],
       "entity_context": "LOAN_COAPPLICANT",
@@ -15113,11 +15109,12 @@
     "coapplicant1gender": {
       "target_excel_key": "COAPPLICANT1GENDER",
       "target_json_key": "coapplicant.gender",
-      "frequency": 19,
+      "frequency": 21,
       "variants": [
         "COAPPLICANT1 GENDER",
         "COAPPLICANT1GENDER",
         "Coapplicant 1 Gender",
+        "coApplicant1gender",
         "coapplicant1Gender"
       ],
       "entity_context": "LOAN_COAPPLICANT1",
@@ -15148,7 +15145,7 @@
     "coapplicantrelation": {
       "target_excel_key": "COAPPLICANTRELATION",
       "target_json_key": "coapplicant.coApplicantRelationWithApplicant",
-      "frequency": 5,
+      "frequency": 7,
       "variants": [
         "COAPPLICANTRELATION"
       ],
@@ -15810,7 +15807,7 @@
     "camreportname": {
       "target_excel_key": "DOCUMENTNAME6",
       "target_json_key": "primary.camReportName",
-      "frequency": 18,
+      "frequency": 17,
       "variants": [
         "CAM Report Name",
         "Cam Report Name"
@@ -15821,7 +15818,7 @@
     "cbdatestamptime": {
       "target_excel_key": "LOANPARAMETER23",
       "target_json_key": "primary.cbDateTime",
-      "frequency": 2,
+      "frequency": 1,
       "variants": [
         "CB Date Stamp Time"
       ],
@@ -16220,7 +16217,7 @@
     "aadharimagebackside": {
       "target_excel_key": "APPLICANTKYC1REVERSEIMAGE",
       "target_json_key": "loanAccount.aadharImageBackSide",
-      "frequency": 18,
+      "frequency": 17,
       "variants": [
         "Aadhar Image Back Side"
       ],
@@ -16230,7 +16227,7 @@
     "aadharname": {
       "target_excel_key": "APPLICANTKYC1TYPE",
       "target_json_key": "loanAccount.aadharName",
-      "frequency": 18,
+      "frequency": 17,
       "variants": [
         "Aadhar Name"
       ],
@@ -16240,7 +16237,7 @@
     "dedupeapistatusmsg": {
       "target_excel_key": "LOANPARAMETER100",
       "target_json_key": "loanAccount.dedupeAPIStatusMsg",
-      "frequency": 24,
+      "frequency": 23,
       "variants": [
         "Dedupe API Status Msg",
         "dedupeAPIStatusMsg"
@@ -16251,10 +16248,9 @@
     "environment": {
       "target_excel_key": "LOANCHANNEL",
       "target_json_key": "loanAccount.environment",
-      "frequency": 18,
+      "frequency": 17,
       "variants": [
-        "Environment",
-        "environment"
+        "Environment"
       ],
       "entity_context": "LOAN_INFORMATION_RIGHT",
       "confidence_tier": "tier2"
@@ -16262,7 +16258,7 @@
     "monthsincelast30dpd": {
       "target_excel_key": "LOANPARAMETER16",
       "target_json_key": "loanAccount.monthSinceLast30Dpd",
-      "frequency": 18,
+      "frequency": 17,
       "variants": [
         "Month Since Last 30DPD"
       ],
@@ -16272,7 +16268,7 @@
     "monthsincelast90dpd": {
       "target_excel_key": "LOANPARAMETER17",
       "target_json_key": "loanAccount.monthSinceLast90Dpd",
-      "frequency": 18,
+      "frequency": 17,
       "variants": [
         "Month Since Last 90DPD"
       ],
@@ -16282,7 +16278,7 @@
     "sanctionlatterimage": {
       "target_excel_key": "DOCUMENTID2",
       "target_json_key": "loanAccount.sanctionLatterImage",
-      "frequency": 18,
+      "frequency": 17,
       "variants": [
         "Sanction Latter Image"
       ],
@@ -16292,7 +16288,7 @@
     "sanctionlatterimagename": {
       "target_excel_key": "DOCUMENTNAME2",
       "target_json_key": "loanAccount.sanctionLatterImageName",
-      "frequency": 18,
+      "frequency": 17,
       "variants": [
         "Sanction Latter Image Name"
       ],
@@ -16302,7 +16298,7 @@
     "welcomelatterimage": {
       "target_excel_key": "DOCUMENTID1",
       "target_json_key": "loanAccount.welcomeLatterImage",
-      "frequency": 18,
+      "frequency": 17,
       "variants": [
         "Welcome Latter Image"
       ],
@@ -16312,7 +16308,7 @@
     "welcomelatterimagename": {
       "target_excel_key": "DOCUMENTNAME1",
       "target_json_key": "loanAccount.welcomeLatterImageName",
-      "frequency": 18,
+      "frequency": 17,
       "variants": [
         "Welcome Latter Image Name"
       ],
@@ -16322,7 +16318,7 @@
     "writeoffeverreject/suitfile": {
       "target_excel_key": "LOANPARAMETER18",
       "target_json_key": "loanAccount.writeOffEverRejectSuitFile",
-      "frequency": 18,
+      "frequency": 17,
       "variants": [
         "Write Off Ever Reject/Suit file"
       ],
@@ -16439,224 +16435,6 @@
       "entity_context": null,
       "confidence_tier": "tier4"
     },
-    "aadharimagepdflink": {
-      "target_excel_key": "DOCUMENTID6",
-      "target_json_key": "loanAccount.aadharImagePdfLink",
-      "frequency": 17,
-      "variants": [
-        "Aadhar Image PDF Link",
-        "Aadhar Image Pdf Link"
-      ],
-      "entity_context": null,
-      "confidence_tier": "tier2"
-    },
-    "aadharimagepdfname": {
-      "target_excel_key": "DOCUMENTNAME6",
-      "target_json_key": "loanAccount.aadharImagePdfName",
-      "frequency": 17,
-      "variants": [
-        "Aadhar Image PDF Name",
-        "Aadhar Image Pdf Name",
-        "Aadhar Image pdf name"
-      ],
-      "entity_context": null,
-      "confidence_tier": "tier2"
-    },
-    "annexurelink": {
-      "target_excel_key": "DOCUMENTID3",
-      "target_json_key": "loanAccount.annexureFileLink",
-      "frequency": 5,
-      "variants": [
-        "Annexure Link"
-      ],
-      "entity_context": "View Uploads",
-      "confidence_tier": "tier3"
-    },
-    "annexurename": {
-      "target_excel_key": "DOCUMENTNAME3",
-      "target_json_key": "loanAccount.annexureFileName",
-      "frequency": 7,
-      "variants": [
-        "Annexure Name"
-      ],
-      "entity_context": "View Uploads",
-      "confidence_tier": "tier3"
-    },
-    "annualgstturnover": {
-      "target_excel_key": "LOANPARAMETER42",
-      "target_json_key": "loanAccount.annualGstTurnover",
-      "frequency": 3,
-      "variants": [
-        "AnnualGstTurnover"
-      ],
-      "entity_context": "BANK_DETAILS",
-      "confidence_tier": "tier3"
-    },
-    "applicantborrowertype": {
-      "target_excel_key": "APPLICANTBORROWERTYPE",
-      "target_json_key": "loanAccount.customerType",
-      "frequency": 1,
-      "variants": [
-        "APPLICANTBORROWERTYPE"
-      ],
-      "entity_context": null,
-      "confidence_tier": "tier4"
-    },
-    "applicantbusinesstype": {
-      "target_excel_key": "APPLICANTBUSINESSTYPE",
-      "target_json_key": "loanAccount.businessType",
-      "frequency": 1,
-      "variants": [
-        "APPLICANTBUSINESSTYPE"
-      ],
-      "entity_context": "PRELIMINARY_LOAN_INFORMATION_LEFT",
-      "confidence_tier": "tier4"
-    },
-    "availableemi": {
-      "target_excel_key": "LOANPARAMETER33",
-      "target_json_key": "loanAccount.availableEmi",
-      "frequency": 7,
-      "variants": [
-        "Available EMI"
-      ],
-      "entity_context": "PRELIMINARY_LOAN_INFORMATION_RIGHT",
-      "confidence_tier": "tier3"
-    },
-    "bankstatementname": {
-      "target_excel_key": "DOCUMENTNAME5",
-      "target_json_key": "loanAccount.bankStatementName",
-      "frequency": 9,
-      "variants": [
-        "Bank Statement Name",
-        "bankStatementName"
-      ],
-      "entity_context": "View Uploads",
-      "confidence_tier": "tier3"
-    },
-    "bankstatementofatleast3months": {
-      "target_excel_key": "DOCUMENTID5",
-      "target_json_key": "loanAccount.bankStatementOfAtleast3Months",
-      "frequency": 3,
-      "variants": [
-        "Bank Statement of atleast 3 Months",
-        "Bank statement of atleast 3 months"
-      ],
-      "entity_context": "View Uploads",
-      "confidence_tier": "tier3"
-    },
-    "blsurrogate": {
-      "target_excel_key": "LOANPARAMETER35",
-      "target_json_key": "loanAccount.surrogate",
-      "frequency": 1,
-      "variants": [
-        "BL Surrogate"
-      ],
-      "entity_context": "PRELIMINARY_LOAN_INFORMATION_LEFT",
-      "confidence_tier": "tier4"
-    },
-    "bureaumodelband": {
-      "target_excel_key": "LOANPARAMETER31",
-      "target_json_key": "loanAccount.bureauModelBand",
-      "frequency": 7,
-      "variants": [
-        "Bureau Model Band"
-      ],
-      "entity_context": "PRELIMINARY_LOAN_INFORMATION_RIGHT",
-      "confidence_tier": "tier3"
-    },
-    "bureauvintage": {
-      "target_excel_key": "LOANPARAMETER36",
-      "target_json_key": "loanAccount.bureauVintage",
-      "frequency": 7,
-      "variants": [
-        "Bureau Vintage"
-      ],
-      "entity_context": "CREDIT_BUREAU_DETAILS_RIGHT",
-      "confidence_tier": "tier3"
-    },
-    "camreportlink": {
-      "target_excel_key": "DOCUMENTID4",
-      "target_json_key": "loanAccount.camReportLink",
-      "frequency": 17,
-      "variants": [
-        "CAM Report Link",
-        "Cam Report Link"
-      ],
-      "entity_context": "View Uploads",
-      "confidence_tier": "tier2"
-    },
-    "chequebounceinlast90days": {
-      "target_excel_key": "LOANPARAMETER38",
-      "target_json_key": "loanAccount.chequeBounceInLast90Days",
-      "frequency": 3,
-      "variants": [
-        "Cheque bounce in last 90 days",
-        "Cheque bounce in last 90Days"
-      ],
-      "entity_context": "PRELIMINARY_LOAN_INFORMATION_LEFT",
-      "confidence_tier": "tier3"
-    },
-    "credittransactionsinbankaccountpermonth": {
-      "target_excel_key": "LOANPARAMETER40",
-      "target_json_key": "loanAccount.creditTransactionInBankAccountPerMonth",
-      "frequency": 6,
-      "variants": [
-        "credit transactions in bank account per month"
-      ],
-      "entity_context": "BANK_DETAILS",
-      "confidence_tier": "tier3"
-    },
-    "currentobligation": {
-      "target_excel_key": "APPLICANTOBLIGATIONALL",
-      "target_json_key": "loanAccount.currentObligation",
-      "frequency": 10,
-      "variants": [
-        "Current Obligation"
-      ],
-      "entity_context": "CREDIT_BUREAU_DETAILS_LEFT",
-      "confidence_tier": "tier2"
-    },
-    "monthsincelast60dpd": {
-      "target_excel_key": "LOANPARAMETER43",
-      "target_json_key": "loanAccount.monthSinceLast60Dpd",
-      "frequency": 1,
-      "variants": [
-        "Month Since Last 60DPD"
-      ],
-      "entity_context": null,
-      "confidence_tier": "tier4"
-    },
-    "monthlygrossincome": {
-      "target_excel_key": "LOANPARAMETER91",
-      "target_json_key": "loanAccount.monthlygrossIncome",
-      "frequency": 1,
-      "variants": [
-        "MONTHLY GROSS INCOME"
-      ],
-      "entity_context": "LOAN_APPLICANT",
-      "confidence_tier": "tier4"
-    },
-    "sector": {
-      "target_excel_key": "LOANPARAMETER41",
-      "target_json_key": "loanAccount.sector",
-      "frequency": 6,
-      "variants": [
-        "SECTOR"
-      ],
-      "entity_context": "PRELIMINARY_LOAN_INFORMATION_RIGHT",
-      "confidence_tier": "tier3"
-    },
-    "serviceableemi": {
-      "target_excel_key": "LOANPARAMETER39",
-      "target_json_key": "loanAccount.serviceableEmi",
-      "frequency": 7,
-      "variants": [
-        "Serviceable EMI",
-        "ServiceableEMI"
-      ],
-      "entity_context": "INCOME_ASSEMENT_LEFT",
-      "confidence_tier": "tier3"
-    },
     "%ownedbywomen": {
       "target_excel_key": "LOANPARAMETER150",
       "target_json_key": "loanAccount.other.%ownedByWomen",
@@ -16762,9 +16540,10 @@
     "coapplicant1currentcity": {
       "target_excel_key": "LOANPARAMETER238",
       "target_json_key": "loanAccount.coApplicantDetail.0.basicDetails.currentCity",
-      "frequency": 10,
+      "frequency": 12,
       "variants": [
-        "COAPPLICANT 1 CURRENT CITY"
+        "COAPPLICANT 1 CURRENT CITY",
+        "coApplicant1currentCity"
       ],
       "entity_context": "LOAN_COAPPLICANT1",
       "confidence_tier": "tier2"
@@ -16772,19 +16551,21 @@
     "coapplicant1currentpincode": {
       "target_excel_key": "LOANPARAMETER240",
       "target_json_key": "loanAccount.coApplicantDetail.0.basicDetails.currentPincode",
-      "frequency": 1,
+      "frequency": 3,
       "variants": [
-        "COAPPLICANT 1 CURRENT PINCODE"
+        "COAPPLICANT 1 CURRENT PINCODE",
+        "coApplicant1currentPincode"
       ],
       "entity_context": null,
-      "confidence_tier": "tier4"
+      "confidence_tier": "tier3"
     },
     "coapplicant1currentstate": {
       "target_excel_key": "LOANPARAMETER239",
       "target_json_key": "loanAccount.coApplicantDetail.0.basicDetails.currentState",
-      "frequency": 10,
+      "frequency": 12,
       "variants": [
-        "CoApplicant 1 Current State"
+        "CoApplicant 1 Current State",
+        "coApplicant1currentState"
       ],
       "entity_context": "LOAN_COAPPLICANT1",
       "confidence_tier": "tier2"
@@ -17056,10 +16837,11 @@
     "coapplicant1permanentcity": {
       "target_excel_key": "LOANPARAMETER174",
       "target_json_key": "loanAccount.coApplicantDetail.0.basicDetails.permanentCity",
-      "frequency": 17,
+      "frequency": 19,
       "variants": [
         "COAPPLICANT 1 PERMANENT CITY",
-        "COAPPLICANT1 PERMANENT CITY"
+        "COAPPLICANT1 PERMANENT CITY",
+        "coApplicant1permanentCity"
       ],
       "entity_context": "LOAN_COAPPLICANT1",
       "confidence_tier": "tier2"
@@ -17067,9 +16849,10 @@
     "coapplicant1permanentpincode": {
       "target_excel_key": "COAPPLICANT1PINCODE",
       "target_json_key": "loanAccount.coApplicantDetail.0.basicDetails.permanentPincode",
-      "frequency": 12,
+      "frequency": 14,
       "variants": [
-        "COAPPLICANT1 PERMANENT PINCODE"
+        "COAPPLICANT1 PERMANENT PINCODE",
+        "coApplicant1permanentPincode"
       ],
       "entity_context": "LOAN_COAPPLICANT1",
       "confidence_tier": "tier2"
@@ -17077,10 +16860,11 @@
     "coapplicant1permanentstate": {
       "target_excel_key": "LOANPARAMETER164",
       "target_json_key": "loanAccount.coApplicantDetail.0.basicDetails.permanentState",
-      "frequency": 17,
+      "frequency": 19,
       "variants": [
         "COAPPLICANT 1 PERMANENT STATE",
-        "COAPPLICANT1 PERMANENT STATE"
+        "COAPPLICANT1 PERMANENT STATE",
+        "coApplicant1permanentState"
       ],
       "entity_context": "LOAN_COAPPLICANT1",
       "confidence_tier": "tier2"
@@ -17132,10 +16916,11 @@
     "coapplicant1dateofbirth": {
       "target_excel_key": "COAPPLICANT1DATEOFBIRTH",
       "target_json_key": "loanAccount.coApplicantDetail.0.basicDetails.dateOfBirth",
-      "frequency": 14,
+      "frequency": 16,
       "variants": [
         "COAPPLICANT1 DATEOFBIRTH",
         "COAPPLICANT1DATEOFBIRTH",
+        "coApplicant1dateOfBirth",
         "coapplicant1DateOfBirth"
       ],
       "entity_context": "LOAN_COAPPLICANT1",
@@ -17365,7 +17150,7 @@
     "coapplicant2name": {
       "target_excel_key": "COAPPLICANT2NAME",
       "target_json_key": "loanAccount.coApplicantDetail.1.basicDetails.name",
-      "frequency": 7,
+      "frequency": 9,
       "variants": [
         "COAPPLICANT 2 NAME",
         "COAPPLICANT2NAME"
@@ -17520,7 +17305,7 @@
     "coapplicant3dateofbirth": {
       "target_excel_key": "COAPPLICANT3DATEOFBIRTH",
       "target_json_key": "loanAccount.coApplicantDetail.2.basicDetails.dateOfBirth",
-      "frequency": 15,
+      "frequency": 17,
       "variants": [
         "COAPPLICANT3DATEOFBIRTH",
         "CoApplicant 3 Date of Birth",
@@ -17552,7 +17337,7 @@
     "coapplicant3gender": {
       "target_excel_key": "COAPPLICANT3GENDER",
       "target_json_key": "loanAccount.coApplicantDetail.2.basicDetails.gender",
-      "frequency": 15,
+      "frequency": 17,
       "variants": [
         "COAPPLICANT3GENDER",
         "CoApplicant 3 Gender",
@@ -17574,7 +17359,7 @@
     "coapplicant3name": {
       "target_excel_key": "COAPPLICANT3NAME",
       "target_json_key": "loanAccount.coApplicantDetail.2.basicDetails.name",
-      "frequency": 12,
+      "frequency": 14,
       "variants": [
         "COAPPLICANT3NAME"
       ],
@@ -17970,7 +17755,7 @@
     "currentcity": {
       "target_excel_key": "LOANPARAMETER226",
       "target_json_key": "loanAccount.applicant.applicantDetail.currentCity",
-      "frequency": 20,
+      "frequency": 18,
       "variants": [
         "Current City",
         "currentCity"
@@ -17981,7 +17766,7 @@
     "currentpincode": {
       "target_excel_key": "LOANPARAMETER228",
       "target_json_key": "loanAccount.applicant.applicantDetail.currentPincode",
-      "frequency": 21,
+      "frequency": 19,
       "variants": [
         "Current Pincode",
         "currentPincode"
@@ -17992,7 +17777,7 @@
     "currentstate": {
       "target_excel_key": "LOANPARAMETER227",
       "target_json_key": "loanAccount.applicant.applicantDetail.currentState",
-      "frequency": 20,
+      "frequency": 18,
       "variants": [
         "Current State",
         "currentState"
@@ -18623,7 +18408,7 @@
     "permanentcity": {
       "target_excel_key": "LOANPARAMETER84",
       "target_json_key": "loanAccount.keyPromoterDetail.permanentCity",
-      "frequency": 16,
+      "frequency": 14,
       "variants": [
         "Permanent CITY",
         "permanentCity"
@@ -18655,7 +18440,7 @@
     "permanentstate": {
       "target_excel_key": "LOANPARAMETER87",
       "target_json_key": "loanAccount.keyPromoterDetail.permanentState",
-      "frequency": 16,
+      "frequency": 14,
       "variants": [
         "Permanent STATE",
         "permanentState"
@@ -18754,6 +18539,27 @@
       "entity_context": "OTHER_DETAILS",
       "confidence_tier": "tier3"
     },
+    "aadharimagepdflink": {
+      "target_excel_key": "DOCUMENTID3",
+      "target_json_key": "loanAccount.aadharImagePdfLink",
+      "frequency": 16,
+      "variants": [
+        "Aadhar Image PDF Link"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier2"
+    },
+    "aadharimagepdfname": {
+      "target_excel_key": "DOCUMENTNAME3",
+      "target_json_key": "loanAccount.aadharImagePdfName",
+      "frequency": 16,
+      "variants": [
+        "Aadhar Image PDF Name",
+        "Aadhar Image pdf name"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier2"
+    },
     "annexurefilelink": {
       "target_excel_key": "DOCUMENTID5",
       "target_json_key": "loanAccount.annexureFileLink",
@@ -18763,6 +18569,108 @@
       ],
       "entity_context": null,
       "confidence_tier": "tier4"
+    },
+    "annexurename": {
+      "target_excel_key": "DOCUMENTNAME5",
+      "target_json_key": "loanAccount.annexureFileName",
+      "frequency": 6,
+      "variants": [
+        "Annexure Name"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier3"
+    },
+    "annualgstturnover": {
+      "target_excel_key": "LOANPARAMETER42",
+      "target_json_key": "loanAccount.annualGstTurnover",
+      "frequency": 2,
+      "variants": [
+        "AnnualGstTurnover"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier4"
+    },
+    "availableemi": {
+      "target_excel_key": "LOANPARAMETER33",
+      "target_json_key": "loanAccount.availableEmi",
+      "frequency": 6,
+      "variants": [
+        "Available EMI"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier3"
+    },
+    "bankstatementname": {
+      "target_excel_key": "DOCUMENTNAME6",
+      "target_json_key": "loanAccount.bankStatementName",
+      "frequency": 8,
+      "variants": [
+        "Bank Statement Name",
+        "bankStatementName"
+      ],
+      "entity_context": "View Uploads",
+      "confidence_tier": "tier3"
+    },
+    "bankstatementofatleast3months": {
+      "target_excel_key": "DOCUMENTID6",
+      "target_json_key": "loanAccount.bankStatementOfAtleast3Months",
+      "frequency": 2,
+      "variants": [
+        "Bank Statement of atleast 3 Months"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier4"
+    },
+    "bureaumodelband": {
+      "target_excel_key": "LOANPARAMETER31",
+      "target_json_key": "loanAccount.bureauModelBand",
+      "frequency": 6,
+      "variants": [
+        "Bureau Model Band"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier3"
+    },
+    "bureauvintage": {
+      "target_excel_key": "LOANPARAMETER36",
+      "target_json_key": "loanAccount.bureauVintage",
+      "frequency": 6,
+      "variants": [
+        "Bureau Vintage"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier3"
+    },
+    "camreportlink": {
+      "target_excel_key": "DOCUMENTID4",
+      "target_json_key": "loanAccount.camReportLink",
+      "frequency": 16,
+      "variants": [
+        "CAM Report Link",
+        "Cam Report Link"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier2"
+    },
+    "chequebounceinlast90days": {
+      "target_excel_key": "LOANPARAMETER38",
+      "target_json_key": "loanAccount.chequeBounceInLast90Days",
+      "frequency": 2,
+      "variants": [
+        "Cheque bounce in last 90 days"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier4"
+    },
+    "credittransactionsinbankaccountpermonth": {
+      "target_excel_key": "LOANPARAMETER40",
+      "target_json_key": "loanAccount.creditTransactionInBankAccountPerMonth",
+      "frequency": 5,
+      "variants": [
+        "credit transactions in bank account per month"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier3"
     },
     "lender1loanamount": {
       "target_excel_key": "PARTNERLOANAMOUNT",
@@ -18786,12 +18694,42 @@
       "entity_context": "LOAN_INFORMATION_LEFT",
       "confidence_tier": "tier2"
     },
+    "sector": {
+      "target_excel_key": "LOANPARAMETER41",
+      "target_json_key": "loanAccount.sector",
+      "frequency": 5,
+      "variants": [
+        "SECTOR"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier3"
+    },
+    "serviceableemi": {
+      "target_excel_key": "LOANPARAMETER39",
+      "target_json_key": "loanAccount.serviceableEmi",
+      "frequency": 6,
+      "variants": [
+        "Serviceable EMI"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier3"
+    },
     "surrogate": {
       "target_excel_key": "LOANPARAMETER35",
       "target_json_key": "loanAccount.surrogate",
       "frequency": 6,
       "variants": [
         "Surrogate"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier3"
+    },
+    "annexurelink": {
+      "target_excel_key": "DOCUMENTID5",
+      "target_json_key": "loanAccount.annexureFileLink",
+      "frequency": 4,
+      "variants": [
+        "Annexure Link"
       ],
       "entity_context": null,
       "confidence_tier": "tier3"
@@ -18845,6 +18783,16 @@
       ],
       "entity_context": null,
       "confidence_tier": "tier4"
+    },
+    "currentobligation": {
+      "target_excel_key": "LOANPARAMETER80",
+      "target_json_key": "loanAccount.currentObligation",
+      "frequency": 9,
+      "variants": [
+        "Current Obligation"
+      ],
+      "entity_context": "CREDIT_BUREAU_DETAILS_LEFT",
+      "confidence_tier": "tier3"
     },
     "updatedaadharxml": {
       "target_excel_key": "DOCUMENTID9",
@@ -23752,13 +23700,13 @@
     "coapplicant3pincode": {
       "target_excel_key": "COAPPLICANT4PINCODE",
       "target_json_key": "loanAccount.coApplicantDetail.2.basicDetails.permanentPincode",
-      "frequency": 8,
+      "frequency": 10,
       "variants": [
         "COAPPLICANT3PINCODE",
         "coapplicant3Pincode"
       ],
       "entity_context": "LOAN_COAPPLICANT3",
-      "confidence_tier": "tier3"
+      "confidence_tier": "tier2"
     },
     "coapplicant3state": {
       "target_excel_key": "LOANPARAMETER114",
@@ -24331,9 +24279,10 @@
     "coapplicant1lastname": {
       "target_excel_key": "COAPPLICANT1LASTNAME",
       "target_json_key": "Coapplicant1.coapplicant1LastName",
-      "frequency": 4,
+      "frequency": 6,
       "variants": [
         "Coapplicant 1 Last Name",
+        "coApplicant1lastName",
         "coapplicant1LastName"
       ],
       "entity_context": "LOAN_APPLICANT",
@@ -24352,12 +24301,13 @@
     "coapplicant1nationality": {
       "target_excel_key": "COAPPLICANT1COUNTRY",
       "target_json_key": "Coapplicant1.coapplicant1Nationality",
-      "frequency": 2,
+      "frequency": 4,
       "variants": [
+        "CoApplicant1nationality",
         "coapplicant1Nationality"
       ],
       "entity_context": "LOAN_COAPPLICANT1",
-      "confidence_tier": "tier4"
+      "confidence_tier": "tier3"
     },
     "coapplicant1netincome": {
       "target_excel_key": "ANNUALINCOMECOAPPLICANT1",
@@ -24585,12 +24535,13 @@
     "coapplicant3id": {
       "target_excel_key": "COAPPLICANT3ID",
       "target_json_key": "coapplicant3.coapplicant3ID",
-      "frequency": 1,
+      "frequency": 3,
       "variants": [
+        "COAPPLICANT3ID",
         "coapplicant3ID"
       ],
-      "entity_context": "LOAN_COAPPLICANT",
-      "confidence_tier": "tier4"
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier3"
     },
     "coapplicant3kyc1image": {
       "target_excel_key": "COAPPLICANT3IDENTITYPROOFIMAGE",
@@ -24625,18 +24576,20 @@
     "coapplicant3lastname": {
       "target_excel_key": "LOANPARAMETER52",
       "target_json_key": "coapplicant3.coapplicant3LastName",
-      "frequency": 1,
+      "frequency": 3,
       "variants": [
+        "COAPPLICANT3LASTNAME",
         "coapplicant3LastName"
       ],
-      "entity_context": "LOAN_COAPPLICANT",
-      "confidence_tier": "tier4"
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier3"
     },
     "coapplicant3maritalstatus": {
       "target_excel_key": "COAPPLICANT3MARITALSTATUS",
       "target_json_key": "coapplicant3.coapplicant3MaritalStatus",
-      "frequency": 3,
+      "frequency": 5,
       "variants": [
+        "COAPPLICANT3MARITALSTATUS",
         "Coapplicant 3 Marital Status",
         "coapplicant3MaritalStatus"
       ],
@@ -25045,7 +24998,7 @@
     "nationality": {
       "target_excel_key": "APPLICANTCOUNTRY",
       "target_json_key": "loanAccount.nationality",
-      "frequency": 10,
+      "frequency": 8,
       "variants": [
         "nationality"
       ],
@@ -25227,7 +25180,7 @@
     "permanentpincode": {
       "target_excel_key": "APPLICANTCUSTOMERPINCODE",
       "target_json_key": "loanAccount.permanentPincode",
-      "frequency": 9,
+      "frequency": 7,
       "variants": [
         "permanentPincode"
       ],
@@ -26955,12 +26908,13 @@
     "coapplicant2title": {
       "target_excel_key": "COAPPLICANT2TITLE",
       "target_json_key": "loanAccount.coapplicant.1.title",
-      "frequency": 2,
+      "frequency": 4,
       "variants": [
+        "COAPPLICANT2TITLE",
         "Co Applicant 2 Title"
       ],
-      "entity_context": null,
-      "confidence_tier": "tier4"
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier3"
     },
     "coapplicant3address1": {
       "target_excel_key": "COAPPLICANT3BUSINESSADDRESS1",
@@ -27135,12 +27089,13 @@
     "coapplicant3title": {
       "target_excel_key": "COAPPLICANT3TITLE",
       "target_json_key": "loanAccount.coapplicant.2.title",
-      "frequency": 2,
+      "frequency": 4,
       "variants": [
+        "COAPPLICANT3TITLE",
         "Co Applicant 3 Title"
       ],
-      "entity_context": null,
-      "confidence_tier": "tier4"
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier3"
     },
     "coapplicant4address1": {
       "target_excel_key": "COAPPLICANT4BUSINESSADDRESS1",
@@ -27415,22 +27370,22 @@
     "coapplicant2commstate": {
       "target_excel_key": "COAPPLICANT2COMMSTATE",
       "target_json_key": "loanAccount.coapplicant.1.mailingState",
-      "frequency": 2,
+      "frequency": 4,
       "variants": [
         "COAPPLICANT2COMMSTATE"
       ],
-      "entity_context": null,
-      "confidence_tier": "tier4"
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier3"
     },
     "coapplicant3commstate": {
       "target_excel_key": "COAPPLICANT3COMMSTATE",
       "target_json_key": "loanAccount.coapplicant.2.mailingState",
-      "frequency": 2,
+      "frequency": 4,
       "variants": [
         "COAPPLICANT3COMMSTATE"
       ],
-      "entity_context": null,
-      "confidence_tier": "tier4"
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier3"
     },
     "coapplicant4commstate": {
       "target_excel_key": "COAPPLICANT4COMMSTATE",
@@ -29268,12 +29223,13 @@
     "coapplicant1fathername": {
       "target_excel_key": "COAPPLICANT1FATHERNAME",
       "target_json_key": "Coapplicant.coapplicant1FatherName",
-      "frequency": 1,
+      "frequency": 3,
       "variants": [
+        "coApplicant1fatherName",
         "coapplicant1FatherName"
       ],
       "entity_context": null,
-      "confidence_tier": "tier4"
+      "confidence_tier": "tier3"
     },
     "coapplicant1mothername": {
       "target_excel_key": "COAPPLICANT1MOTHERNAME",
@@ -33371,12 +33327,13 @@
     "coapplicant1mobilenumber": {
       "target_excel_key": "COAPPLICANTMOBILENO",
       "target_json_key": "coapplicantDemographics.mobileNumber",
-      "frequency": 2,
+      "frequency": 4,
       "variants": [
-        "Coapplicant 1 Mobile Number"
+        "Coapplicant 1 Mobile Number",
+        "coApplicant1mobileNumber"
       ],
       "entity_context": "LOAN_APPLICANT",
-      "confidence_tier": "tier4"
+      "confidence_tier": "tier3"
     },
     "coapplicant1mother'slastname": {
       "target_excel_key": "LOANPARAMETER155",
@@ -33422,12 +33379,13 @@
     "coapplicant1pannumber": {
       "target_excel_key": "COAAPLICANT1IDENTITYPROOFNO",
       "target_json_key": "coapplicantDemographics.panNumber",
-      "frequency": 2,
+      "frequency": 4,
       "variants": [
-        "Coapplicant 1 PAN Number"
+        "Coapplicant 1 PAN Number",
+        "coApplicant1panNumber"
       ],
       "entity_context": "LOAN_APPLICANT",
-      "confidence_tier": "tier4"
+      "confidence_tier": "tier3"
     },
     "coapplicant1personwithdisabilities?": {
       "target_excel_key": "LOANPARAMETER157",
@@ -36605,7 +36563,7 @@
     "clientcustomerid": {
       "target_excel_key": "APPLICANTCUSTOMERID",
       "target_json_key": "loanAccount.applicationIdentity.clientCustomerId",
-      "frequency": 4,
+      "frequency": 2,
       "variants": [
         "clientCustomerId"
       ],
@@ -36635,7 +36593,7 @@
     "title": {
       "target_excel_key": "APPLICANTCUSTOMERTITLE",
       "target_json_key": "loanAccount.personalInformation.title",
-      "frequency": 4,
+      "frequency": 2,
       "variants": [
         "title"
       ],
@@ -37083,7 +37041,7 @@
       "confidence_tier": "tier4"
     },
     "customeroverallexposure": {
-      "target_excel_key": "EXISTINGLIMITWITHSAMUNNATI",
+      "target_excel_key": "LOANPARAMETER17",
       "target_json_key": "loanAccount.loanDetail.customerOverallExposure",
       "frequency": 2,
       "variants": [
@@ -37133,7 +37091,7 @@
       "confidence_tier": "tier4"
     },
     "vclpreviousloanid": {
-      "target_excel_key": "VOTERID",
+      "target_excel_key": "LOANPARAMETER167",
       "target_json_key": "loanAccount.loanDetail.vclPreviousLoanId",
       "frequency": 2,
       "variants": [
@@ -37253,7 +37211,7 @@
       "confidence_tier": "tier4"
     },
     "repaymentbankname": {
-      "target_excel_key": "CUSTOMERBANK",
+      "target_excel_key": "COLLECTIONBANKNAME",
       "target_json_key": "loanAccount.repaymentInformation.repaymentBankName",
       "frequency": 2,
       "variants": [
@@ -37263,7 +37221,7 @@
       "confidence_tier": "tier4"
     },
     "repaymentbankaccountnumber": {
-      "target_excel_key": "CUSTOMERBANKACCOUNTNUMBER",
+      "target_excel_key": "COLLECTIONACCOUNTNUMBER",
       "target_json_key": "loanAccount.repaymentInformation.repaymentBankAccountNumber",
       "frequency": 2,
       "variants": [
@@ -37273,7 +37231,7 @@
       "confidence_tier": "tier4"
     },
     "repaymentaccounttype": {
-      "target_excel_key": "CUSTOMERBANKACCOUNTTYPE",
+      "target_excel_key": "COLLECTIONACCOUNTTYPE",
       "target_json_key": "loanAccount.repaymentInformation.repaymentAccountType",
       "frequency": 2,
       "variants": [
@@ -37283,7 +37241,7 @@
       "confidence_tier": "tier4"
     },
     "repaymentbankaccountname": {
-      "target_excel_key": "CUSTOMERNAMEINBANK",
+      "target_excel_key": "COLLECTIONACCOUNTNUMBER",
       "target_json_key": "loanAccount.repaymentInformation.repaymentBankAccountName",
       "frequency": 2,
       "variants": [
@@ -37293,7 +37251,7 @@
       "confidence_tier": "tier4"
     },
     "repaymentbankbranchname": {
-      "target_excel_key": "CUSTOMERBANKBRANCH",
+      "target_excel_key": "COLLECTIONBANKBRANCHNAME",
       "target_json_key": "loanAccount.repaymentInformation.repaymentBankBranchName",
       "frequency": 2,
       "variants": [
@@ -37303,7 +37261,7 @@
       "confidence_tier": "tier4"
     },
     "repaymentbankifsc": {
-      "target_excel_key": "IFSCCODE",
+      "target_excel_key": "COLLECTIONIFSCCODE",
       "target_json_key": "loanAccount.repaymentInformation.repaymentBankIfsc",
       "frequency": 2,
       "variants": [
@@ -37362,32 +37320,72 @@
       "entity_context": null,
       "confidence_tier": "tier4"
     },
-    "relationshipwithapplicant": {
+    "coapplicant1title": {
+      "target_excel_key": "COAPPLICANT1TITLE",
+      "target_json_key": "loanAccount.coApplicants.0.title",
+      "frequency": 2,
+      "variants": [
+        "coApplicant1title"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier4"
+    },
+    "coapplicant1relationshipwithapplicant": {
       "target_excel_key": "COAPPLICANTRELATION",
-      "target_json_key": "loanAccount.coApplicants.relationshipWithApplicant",
+      "target_json_key": "loanAccount.coApplicants.0.relationshipWithApplicant",
       "frequency": 2,
       "variants": [
-        "relationshipWithApplicant"
+        "coApplicant1relationshipWithApplicant"
       ],
       "entity_context": null,
       "confidence_tier": "tier4"
     },
-    "relationshipproof": {
+    "coapplicant1relationshipproof": {
       "target_excel_key": "LOANPARAMETER35",
-      "target_json_key": "loanAccount.coApplicants.relationshipProof",
+      "target_json_key": "loanAccount.coApplicants.0.relationshipProof",
       "frequency": 2,
       "variants": [
-        "relationshipProof"
+        "coApplicant1relationshipProof"
       ],
       "entity_context": null,
       "confidence_tier": "tier4"
     },
-    "bureauname": {
-      "target_excel_key": "NAMEOFBUREAU",
-      "target_json_key": "loanAccount.coApplicants.bureauName",
+    "coapplicant1clientcustomerid": {
+      "target_excel_key": "COAPPLICANT1CUSTOMERID",
+      "target_json_key": "loanAccount.coApplicants.0.clientCustomerId",
       "frequency": 2,
       "variants": [
-        "bureauName"
+        "coApplicant1clientCustomerId"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier4"
+    },
+    "coapplicant1aadharnumber": {
+      "target_excel_key": "COAPPLICANTAADHAARNO",
+      "target_json_key": "loanAccount.coApplicants.0.aadharNumber",
+      "frequency": 2,
+      "variants": [
+        "coApplicant1aadharNumber"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier4"
+    },
+    "coapplicant1bureauname": {
+      "target_excel_key": "NAMEOFBUREAU",
+      "target_json_key": "loanAccount.coApplicants.0.bureauName",
+      "frequency": 2,
+      "variants": [
+        "coApplicant1bureauName"
+      ],
+      "entity_context": null,
+      "confidence_tier": "tier4"
+    },
+    "coapplicant1bureauscore": {
+      "target_excel_key": "BUREAUSCORECOAPPLICANT0",
+      "target_json_key": "loanAccount.coApplicants.0.bureauScore",
+      "frequency": 2,
+      "variants": [
+        "coApplicant1bureauScore"
       ],
       "entity_context": null,
       "confidence_tier": "tier4"
@@ -37510,6 +37508,316 @@
         "loanAccount.personalInformation.gender"
       ],
       "entity_context": "LOAN_APPLICANT",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant3commaddress2": {
+      "target_excel_key": "COAPPLICANT3COMMADDRESS2",
+      "target_json_key": "loanAccount.coApplicants.2.address",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT3COMMADDRESS2"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant3district": {
+      "target_excel_key": "COAPPLICANT3DISTRICT",
+      "target_json_key": "loanAccount.coApplicants.2.district",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT3DISTRICT"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "documentid77": {
+      "target_excel_key": "DOCUMENTID77",
+      "target_json_key": "loanAccount.coApplicants.2.identityProofImageId",
+      "frequency": 2,
+      "variants": [
+        "DOCUMENTID77"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "documentid78": {
+      "target_excel_key": "DOCUMENTID78",
+      "target_json_key": "loanAccount.coApplicants.2.addressProofImageId",
+      "frequency": 2,
+      "variants": [
+        "DOCUMENTID78"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant3addressproofno": {
+      "target_excel_key": "COAPPLICANT3ADDRESSPROOFNO",
+      "target_json_key": "loanAccount.coApplicants.2.addressProofNo",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT3ADDRESSPROOFNO"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant3mobile": {
+      "target_excel_key": "COAPPLICANT3MOBILE",
+      "target_json_key": "loanAccount.coApplicants.2.mobileNumber",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT3MOBILE"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant3country": {
+      "target_excel_key": "COAPPLICANT3COUNTRY",
+      "target_json_key": "loanAccount.coApplicants.2.nationality",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT3COUNTRY"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant3permcity": {
+      "target_excel_key": "COAPPLICANT3PERMCITY",
+      "target_json_key": "loanAccount.coApplicants.2.permanentCity",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT3PERMCITY"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter166": {
+      "target_excel_key": "LOANPARAMETER166",
+      "target_json_key": "loanAccount.coApplicants.2.bureauName",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER166"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter165": {
+      "target_excel_key": "LOANPARAMETER165",
+      "target_json_key": "loanAccount.coApplicants.2.bureauScore",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER165"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter164": {
+      "target_excel_key": "LOANPARAMETER164",
+      "target_json_key": "loanAccount.coApplicants.2.relationshipProof",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER164"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter163": {
+      "target_excel_key": "LOANPARAMETER163",
+      "target_json_key": "loanAccount.coApplicants.2.fatherName",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER163"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant3commcity": {
+      "target_excel_key": "COAPPLICANT3COMMCITY",
+      "target_json_key": "loanAccount.coApplicants.2.currentCity",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT3COMMCITY"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant3commpin": {
+      "target_excel_key": "COAPPLICANT3COMMPIN",
+      "target_json_key": "loanAccount.coApplicants.2.currentPincode",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT3COMMPIN"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter161": {
+      "target_excel_key": "LOANPARAMETER161",
+      "target_json_key": "loanAccount.coApplicants.2.coapplicantImage",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER161"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter160": {
+      "target_excel_key": "LOANPARAMETER160",
+      "target_json_key": "loanAccount.coApplicants.2.relationshipImage",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER160"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant2commaddress2": {
+      "target_excel_key": "COAPPLICANT2COMMADDRESS2",
+      "target_json_key": "loanAccount.coApplicants.1.address",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT2COMMADDRESS2"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant2district": {
+      "target_excel_key": "COAPPLICANT2DISTRICT",
+      "target_json_key": "loanAccount.coApplicants.1.district",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT2DISTRICT"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "documentid24": {
+      "target_excel_key": "DOCUMENTID24",
+      "target_json_key": "loanAccount.coApplicants.1.identityProofImageId",
+      "frequency": 2,
+      "variants": [
+        "DOCUMENTID24"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "documentid26": {
+      "target_excel_key": "DOCUMENTID26",
+      "target_json_key": "loanAccount.coApplicants.1.addressProofImageId",
+      "frequency": 2,
+      "variants": [
+        "DOCUMENTID26"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant2mobile": {
+      "target_excel_key": "COAPPLICANT2MOBILE",
+      "target_json_key": "loanAccount.coApplicants.1.mobileNumber",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT2MOBILE"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter180": {
+      "target_excel_key": "LOANPARAMETER180",
+      "target_json_key": "loanAccount.coApplicants.1.permanentState",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER180"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant2permcity": {
+      "target_excel_key": "COAPPLICANT2PERMCITY",
+      "target_json_key": "loanAccount.coApplicants.1.permanentCity",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT2PERMCITY"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter115": {
+      "target_excel_key": "LOANPARAMETER115",
+      "target_json_key": "loanAccount.coApplicants.1.bureauName",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER115"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter114": {
+      "target_excel_key": "LOANPARAMETER114",
+      "target_json_key": "loanAccount.coApplicants.1.bureauScore",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER114"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter113": {
+      "target_excel_key": "LOANPARAMETER113",
+      "target_json_key": "loanAccount.coApplicants.1.relationshipProof",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER113"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter112": {
+      "target_excel_key": "LOANPARAMETER112",
+      "target_json_key": "loanAccount.coApplicants.1.fatherName",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER112"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant2commcity": {
+      "target_excel_key": "COAPPLICANT2COMMCITY",
+      "target_json_key": "loanAccount.coApplicants.1.currentCity",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT2COMMCITY"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "coapplicant2commpin": {
+      "target_excel_key": "COAPPLICANT2COMMPIN",
+      "target_json_key": "loanAccount.coApplicants.1.currentPincode",
+      "frequency": 2,
+      "variants": [
+        "COAPPLICANT2COMMPIN"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter105": {
+      "target_excel_key": "LOANPARAMETER105",
+      "target_json_key": "loanAccount.coApplicants.1.coapplicantImage",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER105"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
+      "confidence_tier": "tier4"
+    },
+    "loanparameter103": {
+      "target_excel_key": "LOANPARAMETER103",
+      "target_json_key": "loanAccount.coApplicants.1.relationshipImage",
+      "frequency": 2,
+      "variants": [
+        "LOANPARAMETER103"
+      ],
+      "entity_context": "LOAN_COAPPLICANT2",
       "confidence_tier": "tier4"
     },
     "applicantaddressproofimageid": {
@@ -38628,7 +38936,7 @@
         "abbEmiRatio",
         "averageMonthlyBalance"
       ],
-      "frequency": 19
+      "frequency": 18
     },
     "ADDRESSOFFPO": {
       "partner_variants": [
@@ -38708,7 +39016,7 @@
         "Apr",
         "apr"
       ],
-      "frequency": 59
+      "frequency": 58
     },
     "APPLICANTAADHAARNO": {
       "partner_variants": [
@@ -38800,12 +39108,11 @@
     },
     "APPLICANTBORROWERTYPE": {
       "partner_variants": [
-        "APPLICANTBORROWERTYPE",
         "Borrower Type",
         "Business Customer Type",
         "primaryBorrowerType"
       ],
-      "frequency": 5
+      "frequency": 4
     },
     "APPLICANTBRANCHCODE": {
       "partner_variants": [
@@ -38834,7 +39141,7 @@
         "applicantBusinessAddress1",
         "permanentAddress"
       ],
-      "frequency": 85
+      "frequency": 84
     },
     "APPLICANTBUSINESSADDRESS2": {
       "partner_variants": [
@@ -38854,7 +39161,7 @@
         "addressLine2",
         "applicantBusinessAddress2"
       ],
-      "frequency": 74
+      "frequency": 73
     },
     "APPLICANTBUSINESSADDRESS3": {
       "partner_variants": [
@@ -38871,15 +39178,14 @@
         "Village",
         "addressLine3"
       ],
-      "frequency": 64
+      "frequency": 63
     },
     "APPLICANTBUSINESSTYPE": {
       "partner_variants": [
-        "APPLICANTBUSINESSTYPE",
         "Business Type",
         "CompanyDetails typeOfBusiness"
       ],
-      "frequency": 9
+      "frequency": 8
     },
     "APPLICANTCASTE": {
       "partner_variants": [
@@ -38997,7 +39303,7 @@
         "CountryID",
         "nationality"
       ],
-      "frequency": 38
+      "frequency": 36
     },
     "APPLICANTCUSTOMERCATEGORY": {
       "partner_variants": [
@@ -39019,7 +39325,7 @@
         "city",
         "district"
       ],
-      "frequency": 69
+      "frequency": 68
     },
     "APPLICANTCUSTOMEREMAILID": {
       "partner_variants": [
@@ -39038,7 +39344,7 @@
         "gender",
         "loanAccount.personalInformation.gender"
       ],
-      "frequency": 67
+      "frequency": 64
     },
     "APPLICANTCUSTOMERID": {
       "partner_variants": [
@@ -39055,7 +39361,7 @@
         "Customer Reference ID",
         "clientCustomerId"
       ],
-      "frequency": 64
+      "frequency": 62
     },
     "APPLICANTCUSTOMERMARITALSTATUS": {
       "partner_variants": [
@@ -39068,7 +39374,7 @@
         "Marital Status",
         "maritalStatus"
       ],
-      "frequency": 69
+      "frequency": 66
     },
     "APPLICANTCUSTOMERMOBILENO": {
       "partner_variants": [
@@ -39086,7 +39392,7 @@
         "companyContactNo",
         "mobileNumber"
       ],
-      "frequency": 100
+      "frequency": 97
     },
     "APPLICANTCUSTOMERNAME": {
       "partner_variants": [
@@ -39107,7 +39413,7 @@
         "firstName",
         "name"
       ],
-      "frequency": 121
+      "frequency": 118
     },
     "APPLICANTCUSTOMERPANNO": {
       "partner_variants": [
@@ -39120,7 +39426,7 @@
         "Pan Number",
         "panNumber"
       ],
-      "frequency": 62
+      "frequency": 59
     },
     "APPLICANTCUSTOMERPINCODE": {
       "partner_variants": [
@@ -39141,14 +39447,14 @@
         "permanentPincode",
         "pincode"
       ],
-      "frequency": 88
+      "frequency": 85
     },
     "APPLICANTCUSTOMERTITLE": {
       "partner_variants": [
         "Applicant Title",
         "title"
       ],
-      "frequency": 6
+      "frequency": 4
     },
     "APPLICANTCUSTOMERTYPE": {
       "partner_variants": [
@@ -39168,7 +39474,7 @@
         "APPLICANTCUSTOMERUDYAMNO",
         "Applicant Customer UdyamNo"
       ],
-      "frequency": 8
+      "frequency": 7
     },
     "APPLICANTDATEOFBIRTH": {
       "partner_variants": [
@@ -39176,18 +39482,20 @@
         "Applicant DOB",
         "Applicant Date Of Birth",
         "Applicant's DOB",
+        "ApplicantdateOfBirth",
         "Business Cust DOB",
         "DOB",
         "KycDetails dateOfBirth"
       ],
-      "frequency": 59
+      "frequency": 60
     },
     "APPLICANTDESIGNATION": {
       "partner_variants": [
         "DESIGNATION",
+        "Profession",
         "designation"
       ],
-      "frequency": 11
+      "frequency": 38
     },
     "APPLICANTEMAILID": {
       "partner_variants": [
@@ -39201,7 +39509,7 @@
         "EmailID",
         "email"
       ],
-      "frequency": 50
+      "frequency": 49
     },
     "APPLICANTEXISTINGEMI": {
       "partner_variants": [
@@ -39219,7 +39527,7 @@
         "FatherName",
         "fatherName"
       ],
-      "frequency": 51
+      "frequency": 48
     },
     "APPLICANTFEEPERCENTAGE": {
       "partner_variants": [
@@ -39234,7 +39542,7 @@
         "processingFeePercentage",
         "processing_fees"
       ],
-      "frequency": 66
+      "frequency": 65
     },
     "APPLICANTFIRSTREPAYMENTDATE": {
       "partner_variants": [
@@ -39247,7 +39555,7 @@
         "Repayment start date",
         "repayment_eff_date"
       ],
-      "frequency": 66
+      "frequency": 65
     },
     "APPLICANTIDENTITYPROOF": {
       "partner_variants": [
@@ -39470,20 +39778,17 @@
         "CKYC Image",
         "ckyc Image"
       ],
-      "frequency": 39
+      "frequency": 38
     },
     "APPLICANTKYC1NUMBER": {
       "partner_variants": [
-        "AADHARNUMBER",
         "ADDITIONALKYC1NUMBER",
-        "Aadhar Number",
         "Applicant KYC 1 No",
         "Applicant KYC number",
         "CKYC Number",
-        "aadharNumber",
         "ckycNumber"
       ],
-      "frequency": 53
+      "frequency": 13
     },
     "APPLICANTKYC1REVERSEIMAGE": {
       "partner_variants": [
@@ -39492,7 +39797,7 @@
         "Aadhar Image Back Side",
         "Applicant KYC 1 Reverse Image"
       ],
-      "frequency": 23
+      "frequency": 22
     },
     "APPLICANTKYC1TYPE": {
       "partner_variants": [
@@ -39503,7 +39808,7 @@
         "CKYC Type",
         "ckyc Type"
       ],
-      "frequency": 34
+      "frequency": 33
     },
     "APPLICANTKYC2IMAGE": {
       "partner_variants": [
@@ -39547,7 +39852,7 @@
         "ownership_proof_image",
         "userImageSignedUrl"
       ],
-      "frequency": 39
+      "frequency": 38
     },
     "APPLICANTKYC3NUMBER": {
       "partner_variants": [
@@ -39707,7 +40012,7 @@
         "Last Name",
         "lastName"
       ],
-      "frequency": 57
+      "frequency": 54
     },
     "APPLICANTLATTITUDE": {
       "partner_variants": [
@@ -39721,12 +40026,11 @@
     },
     "APPLICANTLOANTYPE": {
       "partner_variants": [
-        "APPLICANTLOANTYPE",
         "Applicant Loan Type",
         "Loan Type",
         "loanType"
       ],
-      "frequency": 14
+      "frequency": 13
     },
     "APPLICANTLOCALITYTYPE": {
       "partner_variants": [
@@ -39757,7 +40061,7 @@
         "Middle Name",
         "middleName"
       ],
-      "frequency": 35
+      "frequency": 34
     },
     "APPLICANTMOBILENO": {
       "partner_variants": [
@@ -39776,7 +40080,7 @@
         "MotherName",
         "motherName"
       ],
-      "frequency": 50
+      "frequency": 49
     },
     "APPLICANTNAMEINBANKACCOUNT": {
       "partner_variants": [
@@ -39786,11 +40090,10 @@
     },
     "APPLICANTOBLIGATIONALL": {
       "partner_variants": [
-        "Current Obligation",
         "Total Existing Obligation",
         "totalObligations"
       ],
-      "frequency": 14
+      "frequency": 4
     },
     "APPLICANTOCCUPATION": {
       "partner_variants": [
@@ -39868,12 +40171,6 @@
       ],
       "frequency": 3
     },
-    "APPLICANTPROFESSION": {
-      "partner_variants": [
-        "Profession"
-      ],
-      "frequency": 31
-    },
     "APPLICANTPROPOSEDEMI": {
       "partner_variants": [
         "EMI",
@@ -39921,7 +40218,7 @@
         "Spouse name",
         "SpouseName"
       ],
-      "frequency": 50
+      "frequency": 49
     },
     "APPLICANTSTATE": {
       "partner_variants": [
@@ -39937,7 +40234,7 @@
         "state",
         "stateName"
       ],
-      "frequency": 60
+      "frequency": 59
     },
     "APPLICANTSUBINDUSTRY": {
       "partner_variants": [
@@ -40021,7 +40318,7 @@
         "netMonthly Income",
         "netMonthlyIncome"
       ],
-      "frequency": 105
+      "frequency": 104
     },
     "BUREAUREPORTLINKCOAPPLICANT0": {
       "partner_variants": [
@@ -40067,9 +40364,10 @@
     },
     "BUREAUSCORECOAPPLICANT0": {
       "partner_variants": [
-        "Bureau Score Coapplicant0"
+        "Bureau Score Coapplicant0",
+        "coApplicant1bureauScore"
       ],
-      "frequency": 1
+      "frequency": 3
     },
     "BUREAUSCORECOAPPLICANT1": {
       "partner_variants": [
@@ -40119,10 +40417,9 @@
     },
     "BUSINESSDESCRIPTION": {
       "partner_variants": [
-        "BUSINESSDESCRIPTION",
         "Business Description"
       ],
-      "frequency": 2
+      "frequency": 1
     },
     "BUSINESSMAILINGOFFICECITY": {
       "partner_variants": [
@@ -40196,7 +40493,7 @@
         "bureauScore",
         "cibilScore"
       ],
-      "frequency": 73
+      "frequency": 70
     },
     "CKYCID": {
       "partner_variants": [
@@ -40220,11 +40517,12 @@
         "COAPPLICANTIDPROOFNUMBER",
         "CoApplicant 1 Identity Proof No",
         "Coapplicant 1 PAN Number",
+        "coApplicant1panNumber",
         "coapplicant1Kyc1Number",
         "coapplicantIdentityProofNumber",
         "coapplicantKyc2Number"
       ],
-      "frequency": 13
+      "frequency": 15
     },
     "COAAPLICANT2IDENTITYPROOF": {
       "partner_variants": [
@@ -40328,11 +40626,12 @@
     "COAPPLICANT1COUNTRY": {
       "partner_variants": [
         "Co-applicant Citizenship",
+        "CoApplicant1nationality",
         "Coapplicant Citizenship",
         "coapplicant1Nationality",
         "coapplicantCitizenship"
       ],
-      "frequency": 7
+      "frequency": 9
     },
     "COAPPLICANT1CUSTOMERID": {
       "partner_variants": [
@@ -40348,11 +40647,12 @@
         "CoApplicant 1 Customer ID",
         "CoApplicant ID",
         "Coapplicant1ID",
+        "coApplicant1clientCustomerId",
         "coapplicant cust id",
         "coapplicant1ID",
         "coapplicantCustomerId"
       ],
-      "frequency": 50
+      "frequency": 52
     },
     "COAPPLICANT1DATEOFBIRTH": {
       "partner_variants": [
@@ -40368,10 +40668,11 @@
         "Coapplicant DOB",
         "DOB_COAPP_1",
         "Date Of Birth Promoter",
+        "coApplicant1dateOfBirth",
         "coapplicant1DateOfBirth",
         "coapplicantDateOfBirth"
       ],
-      "frequency": 44
+      "frequency": 46
     },
     "COAPPLICANT1DISTRICT": {
       "partner_variants": [
@@ -40395,10 +40696,11 @@
         "Coapplicant Spouse or Father Name",
         "Father Name Promoter",
         "Spouse or Father Name",
+        "coApplicant1fatherName",
         "coapplicant1FatherName",
         "coapplicantFatherName"
       ],
-      "frequency": 18
+      "frequency": 20
     },
     "COAPPLICANT1FIRSTNAME": {
       "partner_variants": [
@@ -40406,9 +40708,10 @@
         "COAPPLICANTCUSTOMERNAME",
         "CO_APPLICANT_NAME_1",
         "Coapplicant 1 First Name",
+        "coApplicant1firstName",
         "coapplicant1FirstName"
       ],
-      "frequency": 10
+      "frequency": 12
     },
     "COAPPLICANT1GENDER": {
       "partner_variants": [
@@ -40424,10 +40727,11 @@
         "Coapplicant 1 Gender",
         "GENDER_COAPP_1",
         "Gender Promoter",
+        "coApplicant1gender",
         "coapplicant1Gender",
         "coapplicantGender"
       ],
-      "frequency": 52
+      "frequency": 54
     },
     "COAPPLICANT1ID": {
       "partner_variants": [
@@ -40509,9 +40813,10 @@
     "COAPPLICANT1LASTNAME": {
       "partner_variants": [
         "Coapplicant 1 Last Name",
+        "coApplicant1lastName",
         "coapplicant1LastName"
       ],
-      "frequency": 4
+      "frequency": 6
     },
     "COAPPLICANT1LATTITUDE": {
       "partner_variants": [
@@ -40535,10 +40840,11 @@
         "Coapplicant 1 Marital Status",
         "Coapplicant Marital Status",
         "Marital Status Promoter",
+        "coApplicant1maritalStatus",
         "coapplicant1MaritalStatus",
         "coapplicantMaritalStatus"
       ],
-      "frequency": 25
+      "frequency": 27
     },
     "COAPPLICANT1MOBILE": {
       "partner_variants": [
@@ -40600,9 +40906,10 @@
         "Coapplicant 1 Pin Code ( Office address )",
         "Coapplicant 1 Pin code",
         "Pincode Promoter",
+        "coApplicant1permanentPincode",
         "coapplicant1Pincode"
       ],
-      "frequency": 27
+      "frequency": 29
     },
     "COAPPLICANT1POSTOFFICE": {
       "partner_variants": [
@@ -40629,9 +40936,10 @@
     },
     "COAPPLICANT1TITLE": {
       "partner_variants": [
-        "Co Applicant Title"
+        "Co Applicant Title",
+        "coApplicant1title"
       ],
-      "frequency": 2
+      "frequency": 4
     },
     "COAPPLICANT2AADHAARNO": {
       "partner_variants": [
@@ -40696,11 +41004,12 @@
     },
     "COAPPLICANT2ADDRESSPROOFNO": {
       "partner_variants": [
+        "COAPPLICANT2ADDRESSPROOFNO",
         "CoApplicant 2 Address Proof No",
         "coapplicant2Kyc2Number",
         "coapplicant2addressProofNumber"
       ],
-      "frequency": 4
+      "frequency": 6
     },
     "COAPPLICANT2ADDRESSPROOFREVERSEIMAGE": {
       "partner_variants": [
@@ -40736,13 +41045,31 @@
       ],
       "frequency": 4
     },
+    "COAPPLICANT2COMMADDRESS2": {
+      "partner_variants": [
+        "COAPPLICANT2COMMADDRESS2"
+      ],
+      "frequency": 2
+    },
+    "COAPPLICANT2COMMCITY": {
+      "partner_variants": [
+        "COAPPLICANT2COMMCITY"
+      ],
+      "frequency": 2
+    },
+    "COAPPLICANT2COMMPIN": {
+      "partner_variants": [
+        "COAPPLICANT2COMMPIN"
+      ],
+      "frequency": 2
+    },
     "COAPPLICANT2COMMSTATE": {
       "partner_variants": [
         "COAPPLICANT2COMMSTATE",
         "CoApplicant 2 State",
         "coapplicant2State"
       ],
-      "frequency": 4
+      "frequency": 6
     },
     "COAPPLICANT2CONSTITUTION": {
       "partner_variants": [
@@ -40752,11 +41079,12 @@
     },
     "COAPPLICANT2COUNTRY": {
       "partner_variants": [
+        "COAPPLICANT2COUNTRY",
         "CoApplicant 2 Country",
         "CoApplicant 2 Permanent Country",
         "coapplicant2Nationality"
       ],
-      "frequency": 3
+      "frequency": 5
     },
     "COAPPLICANT2CUSTOMERID": {
       "partner_variants": [
@@ -40782,9 +41110,10 @@
     "COAPPLICANT2DISTRICT": {
       "partner_variants": [
         "COAPPLICANT2 PERMANENT CITY",
+        "COAPPLICANT2DISTRICT",
         "CoApplicant 2 Permanent City"
       ],
-      "frequency": 6
+      "frequency": 8
     },
     "COAPPLICANT2DOB": {
       "partner_variants": [
@@ -40793,7 +41122,7 @@
         "CoApplicant 2 Date of Birth",
         "coapplicant2DateOfBirth"
       ],
-      "frequency": 9
+      "frequency": 11
     },
     "COAPPLICANT2DOCUMENT1": {
       "partner_variants": [
@@ -40835,14 +41164,14 @@
         "GENDER_COAPP_2",
         "coapplicant2Gender"
       ],
-      "frequency": 11
+      "frequency": 13
     },
     "COAPPLICANT2ID": {
       "partner_variants": [
         "COAPPLICANT2ID",
         "coapplicant2ID"
       ],
-      "frequency": 10
+      "frequency": 12
     },
     "COAPPLICANT2IDENTITYPROOF": {
       "partner_variants": [
@@ -40884,10 +41213,11 @@
     },
     "COAPPLICANT2LASTNAME": {
       "partner_variants": [
+        "COAPPLICANT2LASTNAME",
         "CoApplicant 2 Last name",
         "coapplicant2LastName"
       ],
-      "frequency": 2
+      "frequency": 4
     },
     "COAPPLICANT2MAILINGADDPINCODE": {
       "partner_variants": [
@@ -40917,11 +41247,12 @@
     },
     "COAPPLICANT2MARITALSTATUS": {
       "partner_variants": [
+        "COAPPLICANT2MARITALSTATUS",
         "CoApplicant 2 Marital  Status",
         "Coapplicant 2 Marital Status",
         "coapplicant2MaritalStatus"
       ],
-      "frequency": 4
+      "frequency": 6
     },
     "COAPPLICANT2MIDDLENAME": {
       "partner_variants": [
@@ -40931,17 +41262,18 @@
     },
     "COAPPLICANT2MOBILE": {
       "partner_variants": [
+        "COAPPLICANT2MOBILE",
         "Coapplicant 2 Mobile No",
         "coapplicant2MobileNo"
       ],
-      "frequency": 3
+      "frequency": 5
     },
     "COAPPLICANT2NAME": {
       "partner_variants": [
         "COAPPLICANT 2 NAME",
         "COAPPLICANT2NAME"
       ],
-      "frequency": 7
+      "frequency": 9
     },
     "COAPPLICANT2OCCUPATION": {
       "partner_variants": [
@@ -40960,6 +41292,12 @@
         "coapplicant2Address"
       ],
       "frequency": 1
+    },
+    "COAPPLICANT2PERMCITY": {
+      "partner_variants": [
+        "COAPPLICANT2PERMCITY"
+      ],
+      "frequency": 2
     },
     "COAPPLICANT2PHOTO": {
       "partner_variants": [
@@ -40997,9 +41335,10 @@
     },
     "COAPPLICANT2TITLE": {
       "partner_variants": [
+        "COAPPLICANT2TITLE",
         "Co Applicant 2 Title"
       ],
-      "frequency": 2
+      "frequency": 4
     },
     "COAPPLICANT2UDF11": {
       "partner_variants": [
@@ -41064,9 +41403,10 @@
     },
     "COAPPLICANT3ADDRESSPROOFNO": {
       "partner_variants": [
+        "COAPPLICANT3ADDRESSPROOFNO",
         "coapplicant3addressProofNumber"
       ],
-      "frequency": 2
+      "frequency": 4
     },
     "COAPPLICANT3BUSINESSADDRESS1": {
       "partner_variants": [
@@ -41086,17 +41426,36 @@
       ],
       "frequency": 2
     },
+    "COAPPLICANT3COMMADDRESS2": {
+      "partner_variants": [
+        "COAPPLICANT3COMMADDRESS2"
+      ],
+      "frequency": 2
+    },
+    "COAPPLICANT3COMMCITY": {
+      "partner_variants": [
+        "COAPPLICANT3COMMCITY"
+      ],
+      "frequency": 2
+    },
+    "COAPPLICANT3COMMPIN": {
+      "partner_variants": [
+        "COAPPLICANT3COMMPIN"
+      ],
+      "frequency": 2
+    },
     "COAPPLICANT3COMMSTATE": {
       "partner_variants": [
         "COAPPLICANT3COMMSTATE"
       ],
-      "frequency": 2
+      "frequency": 4
     },
     "COAPPLICANT3COUNTRY": {
       "partner_variants": [
+        "COAPPLICANT3COUNTRY",
         "coapplicant3Nationality"
       ],
-      "frequency": 1
+      "frequency": 3
     },
     "COAPPLICANT3CUSTOMERID": {
       "partner_variants": [
@@ -41110,7 +41469,13 @@
         "CoApplicant 3 Date of Birth",
         "coapplicant3DateOfBirth"
       ],
-      "frequency": 15
+      "frequency": 17
+    },
+    "COAPPLICANT3DISTRICT": {
+      "partner_variants": [
+        "COAPPLICANT3DISTRICT"
+      ],
+      "frequency": 2
     },
     "COAPPLICANT3DOCUMENT1": {
       "partner_variants": [
@@ -41143,13 +41508,14 @@
         "CoApplicant 3 Gender",
         "coapplicant3Gender"
       ],
-      "frequency": 15
+      "frequency": 17
     },
     "COAPPLICANT3ID": {
       "partner_variants": [
+        "COAPPLICANT3ID",
         "coapplicant3ID"
       ],
-      "frequency": 1
+      "frequency": 3
     },
     "COAPPLICANT3IDENTITYPROOF": {
       "partner_variants": [
@@ -41185,20 +41551,33 @@
     },
     "COAPPLICANT3MARITALSTATUS": {
       "partner_variants": [
+        "COAPPLICANT3MARITALSTATUS",
         "Coapplicant 3 Marital Status",
         "coapplicant3MaritalStatus"
       ],
-      "frequency": 3
+      "frequency": 5
+    },
+    "COAPPLICANT3MOBILE": {
+      "partner_variants": [
+        "COAPPLICANT3MOBILE"
+      ],
+      "frequency": 2
     },
     "COAPPLICANT3NAME": {
       "partner_variants": [
         "COAPPLICANT3NAME"
       ],
-      "frequency": 12
+      "frequency": 14
     },
     "COAPPLICANT3OCCUPATION": {
       "partner_variants": [
         "CoApplicant 3  Occupation"
+      ],
+      "frequency": 2
+    },
+    "COAPPLICANT3PERMCITY": {
+      "partner_variants": [
+        "COAPPLICANT3PERMCITY"
       ],
       "frequency": 2
     },
@@ -41228,9 +41607,10 @@
     },
     "COAPPLICANT3TITLE": {
       "partner_variants": [
+        "COAPPLICANT3TITLE",
         "Co Applicant 3 Title"
       ],
-      "frequency": 2
+      "frequency": 4
     },
     "COAPPLICANT4ADDRESSPROOF": {
       "partner_variants": [
@@ -41390,7 +41770,7 @@
         "coapplicant3Pincode",
         "coapplicant4Pincode"
       ],
-      "frequency": 14
+      "frequency": 16
     },
     "COAPPLICANT4RELATION": {
       "partner_variants": [
@@ -41415,9 +41795,10 @@
         "CO-APPLICANT AADHAR NO",
         "COAPPLICANTAADHAARNO",
         "COAPPLICANTAADHARNUMBER",
-        "CoApplicant Aadhaar No"
+        "CoApplicant Aadhaar No",
+        "coApplicant1aadharNumber"
       ],
-      "frequency": 9
+      "frequency": 11
     },
     "COAPPLICANTADDITIONALKYC1IMAGE": {
       "partner_variants": [
@@ -41558,6 +41939,7 @@
     },
     "COAPPLICANTMAILINGADDPINCODE": {
       "partner_variants": [
+        "COAPPLICANT2PINCODE",
         "COAPPLICANTPINCODE",
         "Co-applicant Pincode",
         "CoApplicant 2 Pincode",
@@ -41567,7 +41949,7 @@
         "coapplicantOfficePin",
         "coapplicantPincode"
       ],
-      "frequency": 23
+      "frequency": 25
     },
     "COAPPLICANTMAILINGADDRESS1": {
       "partner_variants": [
@@ -41622,9 +42004,10 @@
         "Coapplicant Mobile No",
         "Coapplicant Mobile no.",
         "Mobile1 Promoter",
+        "coApplicant1mobileNumber",
         "coapplicantMobileNo"
       ],
-      "frequency": 27
+      "frequency": 29
     },
     "COAPPLICANTPANNO": {
       "partner_variants": [
@@ -41670,10 +42053,10 @@
         "COAPPLICANTRELATION",
         "CoapplicantRelationWithApplicant",
         "Relation with Applicant",
-        "relationWithApplicant",
-        "relationshipWithApplicant"
+        "coApplicant1relationshipWithApplicant",
+        "relationWithApplicant"
       ],
-      "frequency": 14
+      "frequency": 16
     },
     "COAPPLICANTSTATE": {
       "partner_variants": [
@@ -41688,7 +42071,7 @@
         "coapplicant1State",
         "coapplicantState"
       ],
-      "frequency": 30
+      "frequency": 32
     },
     "COAPPLICANTTYPE": {
       "partner_variants": [
@@ -41747,6 +42130,37 @@
       ],
       "frequency": 9
     },
+    "COLLECTIONACCOUNTNUMBER": {
+      "partner_variants": [
+        "repaymentBankAccountName",
+        "repaymentBankAccountNumber"
+      ],
+      "frequency": 4
+    },
+    "COLLECTIONACCOUNTTYPE": {
+      "partner_variants": [
+        "repaymentAccountType"
+      ],
+      "frequency": 2
+    },
+    "COLLECTIONBANKBRANCHNAME": {
+      "partner_variants": [
+        "repaymentBankBranchName"
+      ],
+      "frequency": 2
+    },
+    "COLLECTIONBANKNAME": {
+      "partner_variants": [
+        "repaymentBankName"
+      ],
+      "frequency": 2
+    },
+    "COLLECTIONIFSCCODE": {
+      "partner_variants": [
+        "repaymentBankIfsc"
+      ],
+      "frequency": 2
+    },
     "COMMERCIALCIBIL": {
       "partner_variants": [
         "Applicant_cibil",
@@ -41782,10 +42196,9 @@
         "Bank Name",
         "BankingDetails bankName",
         "CUSTOMERBANK",
-        "bankName",
-        "repaymentBankName"
+        "bankName"
       ],
-      "frequency": 45
+      "frequency": 43
     },
     "CUSTOMERBANKACCOUNTNUMBER": {
       "partner_variants": [
@@ -41802,10 +42215,9 @@
         "Customer BankAccount Number",
         "accountNo",
         "accountNumber",
-        "bankAccountNumber",
-        "repaymentBankAccountNumber"
+        "bankAccountNumber"
       ],
-      "frequency": 77
+      "frequency": 74
     },
     "CUSTOMERBANKACCOUNTTYPE": {
       "partner_variants": [
@@ -41817,10 +42229,9 @@
         "CUSTOMERBANKACCOUNTTYPE",
         "accountType",
         "bankAccountType",
-        "bank_account_type",
-        "repaymentAccountType"
+        "bank_account_type"
       ],
-      "frequency": 62
+      "frequency": 59
     },
     "CUSTOMERBANKBRANCH": {
       "partner_variants": [
@@ -41828,10 +42239,9 @@
         "Bank Branch Name",
         "CUSTOMERBANKBRANCH",
         "bankBranch",
-        "bankBranchName",
-        "repaymentBankBranchName"
+        "bankBranchName"
       ],
-      "frequency": 27
+      "frequency": 25
     },
     "CUSTOMERDOCUMENT1": {
       "partner_variants": [
@@ -41841,7 +42251,7 @@
         "Cibil Report Link",
         "cbFile"
       ],
-      "frequency": 31
+      "frequency": 30
     },
     "CUSTOMERDOCUMENT1NAME": {
       "partner_variants": [
@@ -41855,7 +42265,7 @@
         "cbfileName",
         "cibil Report"
       ],
-      "frequency": 40
+      "frequency": 39
     },
     "CUSTOMERID": {
       "partner_variants": [
@@ -41864,7 +42274,7 @@
         "customer id",
         "customerId"
       ],
-      "frequency": 68
+      "frequency": 67
     },
     "CUSTOMERNAMEINBANK": {
       "partner_variants": [
@@ -41879,10 +42289,9 @@
         "accountName",
         "account_name",
         "bankAccountName",
-        "bankBeneficiaryName",
-        "repaymentBankAccountName"
+        "bankBeneficiaryName"
       ],
-      "frequency": 48
+      "frequency": 46
     },
     "CUSTOMERPHOTO": {
       "partner_variants": [
@@ -41904,7 +42313,7 @@
         "dateOfBirth",
         "dateofbirth"
       ],
-      "frequency": 18
+      "frequency": 14
     },
     "DATEOFDISBURSEMENT": {
       "partner_variants": [
@@ -41924,7 +42333,7 @@
         "disbursementdate",
         "loanDisbursementDate"
       ],
-      "frequency": 107
+      "frequency": 106
     },
     "DATEOFINCORPORATION": {
       "partner_variants": [
@@ -41952,7 +42361,7 @@
         "MaturityDate",
         "lastEmiDate"
       ],
-      "frequency": 85
+      "frequency": 84
     },
     "DISBURSEMENTAMOUNT": {
       "partner_variants": [
@@ -42005,7 +42414,7 @@
         "selfieUrl",
         "signed_loan_agreement"
       ],
-      "frequency": 51
+      "frequency": 50
     },
     "DOCUMENTID10": {
       "partner_variants": [
@@ -42230,7 +42639,7 @@
         "perfiosLink",
         "perfiosXmlLink"
       ],
-      "frequency": 62
+      "frequency": 61
     },
     "DOCUMENTID20": {
       "partner_variants": [
@@ -42274,13 +42683,14 @@
     "DOCUMENTID24": {
       "partner_variants": [
         "CKYC",
+        "DOCUMENTID24",
         "DemandPromissoryNote",
         "Shareholding Pattern",
         "applicant gst",
         "coapplicantIncomeProof",
         "sales_bills_image"
       ],
-      "frequency": 9
+      "frequency": 11
     },
     "DOCUMENTID25": {
       "partner_variants": [
@@ -42295,12 +42705,13 @@
     },
     "DOCUMENTID26": {
       "partner_variants": [
+        "DOCUMENTID26",
         "FATCACRSDeclaration",
         "applicant cam",
         "guarantorCibilXmlFile",
         "statementOfAccountLink"
       ],
-      "frequency": 6
+      "frequency": 8
     },
     "DOCUMENTID27": {
       "partner_variants": [
@@ -42338,7 +42749,7 @@
     },
     "DOCUMENTID3": {
       "partner_variants": [
-        "Annexure Link",
+        "Aadhar Image PDF Link",
         "DOCUMENTID3",
         "Document ID3",
         "Nominee documents link",
@@ -42349,7 +42760,7 @@
         "panNumberLink",
         "upiFile"
       ],
-      "frequency": 34
+      "frequency": 45
     },
     "DOCUMENTID30": {
       "partner_variants": [
@@ -42455,7 +42866,7 @@
         "utilityBillsLink",
         "vkycLink"
       ],
-      "frequency": 65
+      "frequency": 64
     },
     "DOCUMENTID40": {
       "partner_variants": [
@@ -42529,9 +42940,8 @@
         "Agent Vkyc Link",
         "Agreement File",
         "Annexure File Link",
+        "Annexure Link",
         "Applicant CB File",
-        "Bank Statement of atleast 3 Months",
-        "Bank statement of atleast 3 months",
         "DOCUMENTID5",
         "Document ID5",
         "NACH Form Image",
@@ -42545,7 +42955,7 @@
         "rentAgreementLink",
         "selfieWithApplicant"
       ],
-      "frequency": 31
+      "frequency": 32
     },
     "DOCUMENTID50": {
       "partner_variants": [
@@ -42609,9 +43019,8 @@
     },
     "DOCUMENTID6": {
       "partner_variants": [
-        "Aadhar Image PDF Link",
-        "Aadhar Image Pdf Link",
         "Applicant Photo",
+        "Bank Statement of atleast 3 Months",
         "CAM Report",
         "Cam Report",
         "DOCUMENTID6",
@@ -42626,7 +43035,7 @@
         "guarantor_ration_image",
         "panVerificationFile"
       ],
-      "frequency": 54
+      "frequency": 39
     },
     "DOCUMENTID60": {
       "partner_variants": [
@@ -42753,15 +43162,17 @@
     },
     "DOCUMENTID77": {
       "partner_variants": [
+        "DOCUMENTID77",
         "applicant bank_statement_9"
       ],
-      "frequency": 2
+      "frequency": 4
     },
     "DOCUMENTID78": {
       "partner_variants": [
+        "DOCUMENTID78",
         "applicant bank_statement_10"
       ],
-      "frequency": 2
+      "frequency": 4
     },
     "DOCUMENTID79": {
       "partner_variants": [
@@ -42944,7 +43355,7 @@
         "photo",
         "selfieFileName"
       ],
-      "frequency": 60
+      "frequency": 59
     },
     "DOCUMENTNAME10": {
       "partner_variants": [
@@ -43110,7 +43521,7 @@
         "perfiosName",
         "sanctionLetterName"
       ],
-      "frequency": 68
+      "frequency": 67
     },
     "DOCUMENTNAME20": {
       "partner_variants": [
@@ -43223,7 +43634,8 @@
     "DOCUMENTNAME3": {
       "partner_variants": [
         "APPLICATIONFORM NAME",
-        "Annexure Name",
+        "Aadhar Image PDF Name",
+        "Aadhar Image pdf name",
         "Application Form Name",
         "DOCUMENTNAME3",
         "Document Name3",
@@ -43236,7 +43648,7 @@
         "agreementFileName",
         "applicant udyog_aadhaar_Name"
       ],
-      "frequency": 40
+      "frequency": 49
     },
     "DOCUMENTNAME30": {
       "partner_variants": [
@@ -43420,8 +43832,8 @@
     "DOCUMENTNAME5": {
       "partner_variants": [
         "Agent Vkyc Name",
+        "Annexure Name",
         "Applicant CB File type",
-        "Bank Statement Name",
         "Business Photo Name",
         "DOCUMENTNAME5",
         "Document Name5",
@@ -43429,13 +43841,12 @@
         "NACH Form Name",
         "applicant pdc_Name",
         "applicantKyc2ValidationResponseName",
-        "bankStatementName",
         "bankVerificationFileName",
         "guarantor_pan_type",
         "rentAgreement",
         "selfie with applicant name"
       ],
-      "frequency": 32
+      "frequency": 29
     },
     "DOCUMENTNAME50": {
       "partner_variants": [
@@ -43499,10 +43910,8 @@
     },
     "DOCUMENTNAME6": {
       "partner_variants": [
-        "Aadhar Image PDF Name",
-        "Aadhar Image Pdf Name",
-        "Aadhar Image pdf name",
         "Applicant Photo Name",
+        "Bank Statement Name",
         "CAM Report Name",
         "Cam Report Name",
         "DOCUMENTNAME6",
@@ -43512,11 +43921,12 @@
         "Pan Image name",
         "applicant perfiosName_1",
         "bankStatement2Name",
+        "bankStatementName",
         "cersaiDocument Name",
         "child1DocumentsName",
         "guarantor_ration_type"
       ],
-      "frequency": 67
+      "frequency": 57
     },
     "DOCUMENTNAME60": {
       "partner_variants": [
@@ -43605,7 +44015,7 @@
         "employmentType",
         "type_of_customer"
       ],
-      "frequency": 60
+      "frequency": 59
     },
     "ENTERPRISEBUSINESSCONSTITUTION": {
       "partner_variants": [
@@ -43618,7 +44028,7 @@
         "Enterprise Business Constitution",
         "constitution"
       ],
-      "frequency": 26
+      "frequency": 25
     },
     "ENTERPRISEREGISTRATIONDATE": {
       "partner_variants": [
@@ -43728,13 +44138,6 @@
         "Director3 Type"
       ],
       "frequency": 1
-    },
-    "EXISTINGLIMITWITHSAMUNNATI": {
-      "partner_variants": [
-        "Existing Limit With SAMUNNATI",
-        "customerOverallExposure"
-      ],
-      "frequency": 3
     },
     "FEE1": {
       "partner_variants": [
@@ -43916,7 +44319,7 @@
         "GSTLINK",
         "GSTLink"
       ],
-      "frequency": 14
+      "frequency": 13
     },
     "GSTNUMBER": {
       "partner_variants": [
@@ -43927,7 +44330,7 @@
         "GST_NO",
         "Gst Number"
       ],
-      "frequency": 49
+      "frequency": 48
     },
     "GSTNUMBERTYPE": {
       "partner_variants": [
@@ -44024,10 +44427,9 @@
         "IFSC Code",
         "IFSCCODE",
         "ifsc",
-        "ifscCode",
-        "repaymentBankIfsc"
+        "ifscCode"
       ],
-      "frequency": 73
+      "frequency": 70
     },
     "INDIVIDUALCIBIL": {
       "partner_variants": [
@@ -44046,7 +44448,7 @@
         "installment_amount",
         "loanEmi"
       ],
-      "frequency": 71
+      "frequency": 70
     },
     "INSURANCEAMT": {
       "partner_variants": [
@@ -44069,7 +44471,7 @@
         "interestRate",
         "rateOfInt"
       ],
-      "frequency": 113
+      "frequency": 112
     },
     "INTERNALLOANID": {
       "partner_variants": [
@@ -44090,7 +44492,7 @@
         "isLoan Proceed",
         "isLoanProceed"
       ],
-      "frequency": 81
+      "frequency": 80
     },
     "ISLOANUPDATE": {
       "partner_variants": [
@@ -44098,7 +44500,7 @@
         "Is Loan Update",
         "isLoanUpdate"
       ],
-      "frequency": 90
+      "frequency": 89
     },
     "ITRETURN1STYRLINK": {
       "partner_variants": [
@@ -44207,7 +44609,7 @@
         "principalAmount",
         "sanctioned_amount"
       ],
-      "frequency": 134
+      "frequency": 133
     },
     "LOANAPPLICANTPARAM1": {
       "partner_variants": [
@@ -44462,14 +44864,13 @@
         "loanapplicationdate",
         "sanctioned_date"
       ],
-      "frequency": 113
+      "frequency": 112
     },
     "LOANCHANNEL": {
       "partner_variants": [
-        "Environment",
-        "environment"
+        "Environment"
       ],
-      "frequency": 18
+      "frequency": 17
     },
     "LOANCOAPP1CUSTPARAM1": {
       "partner_variants": [
@@ -44596,7 +44997,7 @@
         "leadCode",
         "loan id"
       ],
-      "frequency": 115
+      "frequency": 114
     },
     "LOANNOMINEE1AADHAARNO": {
       "partner_variants": [
@@ -44738,7 +45139,7 @@
         "liveNoOfLoan",
         "pre_emi_charges"
       ],
-      "frequency": 66
+      "frequency": 65
     },
     "LOANPARAMETER1": {
       "partner_variants": [
@@ -44765,7 +45166,7 @@
         "referenceCheck",
         "writeOff"
       ],
-      "frequency": 75
+      "frequency": 74
     },
     "LOANPARAMETER10": {
       "partner_variants": [
@@ -44791,7 +45192,7 @@
         "overallOutstanding",
         "proposed_roi"
       ],
-      "frequency": 83
+      "frequency": 82
     },
     "LOANPARAMETER100": {
       "partner_variants": [
@@ -44805,7 +45206,7 @@
         "family_members_first_loan_sanction_date",
         "guarantorGrossIncome"
       ],
-      "frequency": 40
+      "frequency": 39
     },
     "LOANPARAMETER101": {
       "partner_variants": [
@@ -44834,10 +45235,11 @@
         "CKYC Fetch Required",
         "Employees & Salaries Monthly Salary",
         "GST Report",
+        "LOANPARAMETER103",
         "guarantorKyc2Type",
         "thatch_roof_pushcart_bunk_shop"
       ],
-      "frequency": 7
+      "frequency": 9
     },
     "LOANPARAMETER104": {
       "partner_variants": [
@@ -44854,10 +45256,11 @@
         "Balance Sheet",
         "BureauDetails overdueAmount",
         "Employees & Salaries Total Salary Paid",
+        "LOANPARAMETER105",
         "guarantorRelationWithApplicant",
         "udyam_reg_invalid"
       ],
-      "frequency": 8
+      "frequency": 10
     },
     "LOANPARAMETER106": {
       "partner_variants": [
@@ -44925,7 +45328,7 @@
         "umrn",
         "vehicleBuyerType"
       ],
-      "frequency": 92
+      "frequency": 91
     },
     "LOANPARAMETER110": {
       "partner_variants": [
@@ -44955,19 +45358,21 @@
         "Cashflow Assessment Total Income",
         "Current Address City",
         "INDIFIAMOUNTAFTERDEDUCTION",
+        "LOANPARAMETER112",
         "No. of Bank Accounts",
         "unsecured_loan_outstanding"
       ],
-      "frequency": 17
+      "frequency": 19
     },
     "LOANPARAMETER113": {
       "partner_variants": [
         "Cashflow Assessment Total Business Expenses",
+        "LOANPARAMETER113",
         "No. of Promoters",
         "Rtr financierNameOrBankName",
         "dsc_failure"
       ],
-      "frequency": 5
+      "frequency": 7
     },
     "LOANPARAMETER114": {
       "partner_variants": [
@@ -44978,11 +45383,12 @@
         "Cashflow Assessment Total Household Expenses",
         "CoApplicant 3 State",
         "FAMILYINCOMEFREQUENCY",
+        "LOANPARAMETER114",
         "Rtr loanType",
         "appl_age_lt_21",
         "coapplicant3State"
       ],
-      "frequency": 21
+      "frequency": 23
     },
     "LOANPARAMETER115": {
       "partner_variants": [
@@ -44991,11 +45397,12 @@
         "Cashflow Assessment Total Expenses",
         "Email Borrower",
         "FAMILYINCOMEEARNED",
+        "LOANPARAMETER115",
         "Rtr emi",
         "appl_age_gt_60",
         "pennyDropValidationResponse"
       ],
-      "frequency": 18
+      "frequency": 20
     },
     "LOANPARAMETER116": {
       "partner_variants": [
@@ -45065,7 +45472,7 @@
         "reference_neighbour_mobile_number_one",
         "repaymentMode"
       ],
-      "frequency": 75
+      "frequency": 74
     },
     "LOANPARAMETER120": {
       "partner_variants": [
@@ -45187,7 +45594,7 @@
         "valuationReport",
         "valueOfTotalOutstandingLoans"
       ],
-      "frequency": 72
+      "frequency": 71
     },
     "LOANPARAMETER130": {
       "partner_variants": [
@@ -45306,7 +45713,7 @@
         "reference_neighbour_mobile_number_two",
         "totalProcessingFeeAmountWithGst"
       ],
-      "frequency": 71
+      "frequency": 70
     },
     "LOANPARAMETER140": {
       "partner_variants": [
@@ -45382,12 +45789,15 @@
     },
     "LOANPARAMETER149": {
       "partner_variants": [
+        "AADHARNUMBER",
+        "Aadhar Number",
         "Business Cashflow Fuel Expenses",
         "Stab Amount",
         "WOMENLEADERSHIPCOUNT",
+        "aadharNumber",
         "success"
       ],
-      "frequency": 10
+      "frequency": 47
     },
     "LOANPARAMETER15": {
       "partner_variants": [
@@ -45415,7 +45825,7 @@
         "vehicleAge",
         "vendor_name_one"
       ],
-      "frequency": 73
+      "frequency": 72
     },
     "LOANPARAMETER150": {
       "partner_variants": [
@@ -45538,25 +45948,27 @@
         "swasthyaSewaDeduction",
         "vendor_mobile_number_one"
       ],
-      "frequency": 55
+      "frequency": 54
     },
     "LOANPARAMETER160": {
       "partner_variants": [
         "BTEC No of Loans Being Takenover",
         "Coapplicant 1 Date of Joining",
         "Coapplicant 1 Date of joining",
+        "LOANPARAMETER160",
         "Overdue Since Ondate",
         "applicant_write_off_amt"
       ],
-      "frequency": 7
+      "frequency": 9
     },
     "LOANPARAMETER161": {
       "partner_variants": [
         "BTEC EMI of Existing Loans Being Takeover",
         "Coapplicant 1 Business Type",
+        "LOANPARAMETER161",
         "pipeline_id1"
       ],
-      "frequency": 4
+      "frequency": 6
     },
     "LOANPARAMETER162": {
       "partner_variants": [
@@ -45572,9 +45984,10 @@
       "partner_variants": [
         "Applicant Customer",
         "BTEC MOB",
+        "LOANPARAMETER163",
         "family_mem_pos"
       ],
-      "frequency": 7
+      "frequency": 9
     },
     "LOANPARAMETER164": {
       "partner_variants": [
@@ -45582,27 +45995,31 @@
         "COAPPLICANT 1 PERMANENT STATE",
         "COAPPLICANT1 PERMANENT STATE",
         "Coapplicant 1 Years of Experience",
+        "LOANPARAMETER164",
         "Location",
+        "coApplicant1permanentState",
         "family_mem_emi"
       ],
-      "frequency": 22
+      "frequency": 26
     },
     "LOANPARAMETER165": {
       "partner_variants": [
         "BTEC Foreclosure Amount",
         "Coapplicant 1 Profession",
+        "LOANPARAMETER165",
         "family_mem_tenure"
       ],
-      "frequency": 4
+      "frequency": 6
     },
     "LOANPARAMETER166": {
       "partner_variants": [
         "BTEC Foreclosure Amount Date",
         "Coapplicant 1 UAN No.",
         "KeyPromoterDISTRICT",
+        "LOANPARAMETER166",
         "family_mem_secured_unsecured"
       ],
-      "frequency": 11
+      "frequency": 13
     },
     "LOANPARAMETER167": {
       "partner_variants": [
@@ -45610,9 +46027,10 @@
         "Coapplicant 1 Employer Name",
         "PD Based Program Tags",
         "Virtual Account Id",
-        "family_mem_max_dpd_days"
+        "family_mem_max_dpd_days",
+        "vclPreviousLoanId"
       ],
-      "frequency": 15
+      "frequency": 17
     },
     "LOANPARAMETER168": {
       "partner_variants": [
@@ -45641,13 +46059,14 @@
         "Month Since Last 90DPD",
         "Month_Since_90_DPD",
         "Number of Employee",
+        "customerOverallExposure",
         "dpdAmount",
         "employmentDetailsName",
         "isApplicantHrpOrNtp",
         "kycPhotoSelfieMatchStatus",
         "vendor_name_two"
       ],
-      "frequency": 51
+      "frequency": 52
     },
     "LOANPARAMETER170": {
       "partner_variants": [
@@ -45692,9 +46111,10 @@
         "COAPPLICANT 1 PERMANENT CITY",
         "COAPPLICANT1 PERMANENT CITY",
         "Chit Based FOIR",
-        "applicant_combo_name"
+        "applicant_combo_name",
+        "coApplicant1permanentCity"
       ],
-      "frequency": 19
+      "frequency": 21
     },
     "LOANPARAMETER175": {
       "partner_variants": [
@@ -45754,15 +46174,16 @@
         "siteVisitCharge",
         "vendor_mobile_number_two"
       ],
-      "frequency": 50
+      "frequency": 49
     },
     "LOANPARAMETER180": {
       "partner_variants": [
         "Coapplicant 1 Address Line 1 ( Permanent address )",
         "KeyPromoterCREDITBUREAUNAME",
+        "LOANPARAMETER180",
         "emi_chart"
       ],
-      "frequency": 13
+      "frequency": 15
     },
     "LOANPARAMETER181": {
       "partner_variants": [
@@ -45849,7 +46270,7 @@
         "panDeduplicationStatus",
         "total_monthly_sales"
       ],
-      "frequency": 51
+      "frequency": 50
     },
     "LOANPARAMETER190": {
       "partner_variants": [
@@ -45958,7 +46379,7 @@
         "residenceTypeCurrentAddress",
         "salesPointName"
       ],
-      "frequency": 121
+      "frequency": 119
     },
     "LOANPARAMETER20": {
       "partner_variants": [
@@ -45976,7 +46397,7 @@
         "passportNumber",
         "writeOffHistory"
       ],
-      "frequency": 46
+      "frequency": 45
     },
     "LOANPARAMETER200": {
       "partner_variants": [
@@ -46083,7 +46504,7 @@
         "videoPdGeotagging",
         "voterId"
       ],
-      "frequency": 65
+      "frequency": 64
     },
     "LOANPARAMETER210": {
       "partner_variants": [
@@ -46234,7 +46655,7 @@
         "Current City",
         "currentCity"
       ],
-      "frequency": 20
+      "frequency": 18
     },
     "LOANPARAMETER227": {
       "partner_variants": [
@@ -46242,7 +46663,7 @@
         "EMI 6 Demand date",
         "currentState"
       ],
-      "frequency": 22
+      "frequency": 20
     },
     "LOANPARAMETER228": {
       "partner_variants": [
@@ -46250,7 +46671,7 @@
         "EMI 5 Demand date",
         "currentPincode"
       ],
-      "frequency": 23
+      "frequency": 21
     },
     "LOANPARAMETER229": {
       "partner_variants": [
@@ -46275,7 +46696,7 @@
         "labour_or_wages",
         "rationCard"
       ],
-      "frequency": 39
+      "frequency": 38
     },
     "LOANPARAMETER230": {
       "partner_variants": [
@@ -46337,16 +46758,18 @@
     "LOANPARAMETER238": {
       "partner_variants": [
         "COAPPLICANT 1 CURRENT CITY",
-        "EMI 1 Amount Paid"
+        "EMI 1 Amount Paid",
+        "coApplicant1currentCity"
       ],
-      "frequency": 12
+      "frequency": 14
     },
     "LOANPARAMETER239": {
       "partner_variants": [
         "CoApplicant 1 Current State",
-        "EMI 6 Payment Date"
+        "EMI 6 Payment Date",
+        "coApplicant1currentState"
       ],
-      "frequency": 12
+      "frequency": 14
     },
     "LOANPARAMETER24": {
       "partner_variants": [
@@ -46364,15 +46787,16 @@
         "customerBranchType",
         "electricity"
       ],
-      "frequency": 59
+      "frequency": 58
     },
     "LOANPARAMETER240": {
       "partner_variants": [
         "COAPPLICANT 1 CURRENT PINCODE",
         "EMI 5 Payment Date",
-        "LOANPARAMETER240"
+        "LOANPARAMETER240",
+        "coApplicant1currentPincode"
       ],
-      "frequency": 9
+      "frequency": 11
     },
     "LOANPARAMETER241": {
       "partner_variants": [
@@ -46455,7 +46879,7 @@
         "sumOverdueAmountNonCcKccGuarantor",
         "valuer Name"
       ],
-      "frequency": 50
+      "frequency": 49
     },
     "LOANPARAMETER250": {
       "partner_variants": [
@@ -46559,7 +46983,7 @@
         "residenceTypePermanentAddress",
         "totalOutstandingOfliveLoans"
       ],
-      "frequency": 107
+      "frequency": 105
     },
     "LOANPARAMETER30": {
       "partner_variants": [
@@ -46599,7 +47023,7 @@
         "jobProfile",
         "net_business_income_as_of_gross_sales"
       ],
-      "frequency": 52
+      "frequency": 51
     },
     "LOANPARAMETER32": {
       "partner_variants": [
@@ -46634,7 +47058,7 @@
         "noOfYearsService",
         "vehicleBatteryNumber"
       ],
-      "frequency": 44
+      "frequency": 43
     },
     "LOANPARAMETER34": {
       "partner_variants": [
@@ -46658,7 +47082,6 @@
     },
     "LOANPARAMETER35": {
       "partner_variants": [
-        "BL Surrogate",
         "CAM",
         "COAPPLICANT 3 CURRENT ADDRESS 1",
         "COAPPLICANT1 AGE",
@@ -46674,10 +47097,10 @@
         "aadhaarValidationStatus",
         "additional_income_to_be_considered",
         "cam",
-        "modeOfSalary",
-        "relationshipProof"
+        "coApplicant1relationshipProof",
+        "modeOfSalary"
       ],
-      "frequency": 52
+      "frequency": 51
     },
     "LOANPARAMETER36": {
       "partner_variants": [
@@ -46702,7 +47125,7 @@
         "salariedDetails",
         "segment Band"
       ],
-      "frequency": 59
+      "frequency": 58
     },
     "LOANPARAMETER37": {
       "partner_variants": [
@@ -46728,7 +47151,6 @@
         "COAPPLICANT4AGE",
         "COAPPLICANT4_AGE",
         "Cheque bounce in last 90 days",
-        "Cheque bounce in last 90Days",
         "Coapplicant office State",
         "DBTO Maximum Permissible FOIR (%)",
         "Execution Date of lease agreement Borrower",
@@ -46744,7 +47166,7 @@
         "residenceType",
         "vintage Months"
       ],
-      "frequency": 69
+      "frequency": 68
     },
     "LOANPARAMETER39": {
       "partner_variants": [
@@ -46758,7 +47180,6 @@
         "IndustrialType",
         "ResidentialOrCommunicationAddress no OfMonthsAtCurrentCity",
         "Serviceable EMI",
-        "ServiceableEMI",
         "Sub Industry Category",
         "avgMonthlyTurnover",
         "category",
@@ -46766,7 +47187,7 @@
         "repayments_for_liabilities_total",
         "selfEmployedDetails"
       ],
-      "frequency": 94
+      "frequency": 92
     },
     "LOANPARAMETER4": {
       "partner_variants": [
@@ -46791,7 +47212,7 @@
         "reference2Check",
         "totalExistingObligations"
       ],
-      "frequency": 102
+      "frequency": 100
     },
     "LOANPARAMETER40": {
       "partner_variants": [
@@ -46808,7 +47229,7 @@
         "subModel",
         "total_monthly_surplus"
       ],
-      "frequency": 34
+      "frequency": 33
     },
     "LOANPARAMETER41": {
       "partner_variants": [
@@ -46825,7 +47246,7 @@
         "debt_service_ratio",
         "vehicleYear"
       ],
-      "frequency": 62
+      "frequency": 60
     },
     "LOANPARAMETER42": {
       "partner_variants": [
@@ -46844,7 +47265,7 @@
         "obligation",
         "onRoadPrice"
       ],
-      "frequency": 41
+      "frequency": 40
     },
     "LOANPARAMETER43": {
       "partner_variants": [
@@ -46854,7 +47275,6 @@
         "CoApplicant 4 PAN NO",
         "Customer Payment",
         "DBTO Max loan possible under the prog",
-        "Month Since Last 60DPD",
         "NTC",
         "PermanentAddressDetails addressLine1",
         "affordable_emi_as_stated_by_the_customer",
@@ -46862,7 +47282,7 @@
         "subProduct",
         "voterIdNumber"
       ],
-      "frequency": 44
+      "frequency": 43
     },
     "LOANPARAMETER44": {
       "partner_variants": [
@@ -46988,7 +47408,7 @@
         "termsAndConditionsAccepted",
         "totalNumberOfUnsecuredLoans"
       ],
-      "frequency": 103
+      "frequency": 101
     },
     "LOANPARAMETER50": {
       "partner_variants": [
@@ -47031,6 +47451,7 @@
       "partner_variants": [
         "BTO Considered",
         "COAPPLICANT 4 CURRENT ADDRESS 2",
+        "COAPPLICANT3LASTNAME",
         "COAPP_2_CITY",
         "Customer Voter ID",
         "Expiry date of Passport Borrower",
@@ -47044,7 +47465,7 @@
         "deviceDeduplication",
         "expiryDate"
       ],
-      "frequency": 38
+      "frequency": 40
     },
     "LOANPARAMETER53": {
       "partner_variants": [
@@ -47196,7 +47617,7 @@
         "natureOfBusiness",
         "totalNumberOfLoans"
       ],
-      "frequency": 116
+      "frequency": 115
     },
     "LOANPARAMETER60": {
       "partner_variants": [
@@ -47377,7 +47798,7 @@
         "pennyDropValidation",
         "taluka"
       ],
-      "frequency": 90
+      "frequency": 88
     },
     "LOANPARAMETER70": {
       "partner_variants": [
@@ -47528,11 +47949,12 @@
         "shopStructure",
         "shop_structure"
       ],
-      "frequency": 112
+      "frequency": 110
     },
     "LOANPARAMETER80": {
       "partner_variants": [
         "CollateralsDetails contactPerson2",
+        "Current Obligation",
         "GST Program Tags Rate of Interest (%)",
         "KeyPromoterDESIGNATION",
         "Living Since Promoter as Per Document",
@@ -47540,7 +47962,7 @@
         "isGoodTransactor",
         "panValidationResponse"
       ],
-      "frequency": 18
+      "frequency": 27
     },
     "LOANPARAMETER81": {
       "partner_variants": [
@@ -47586,7 +48008,7 @@
         "smsTpvMultiplier",
         "tvrGenerated"
       ],
-      "frequency": 25
+      "frequency": 23
     },
     "LOANPARAMETER85": {
       "partner_variants": [
@@ -47625,7 +48047,7 @@
         "permanentState",
         "requestedInterestRate"
       ],
-      "frequency": 25
+      "frequency": 23
     },
     "LOANPARAMETER88": {
       "partner_variants": [
@@ -47674,7 +48096,7 @@
         "subCategory",
         "total_enquiry_6mnths"
       ],
-      "frequency": 59
+      "frequency": 58
     },
     "LOANPARAMETER90": {
       "partner_variants": [
@@ -47694,11 +48116,10 @@
         "CoApplicant1 DLICENSENO",
         "CoApplicant1DLICENSENO",
         "CollateralAddress state",
-        "MONTHLY GROSS INCOME",
         "family_members_marital_status",
         "guarantorLastName"
       ],
-      "frequency": 16
+      "frequency": 15
     },
     "LOANPARAMETER92": {
       "partner_variants": [
@@ -47807,7 +48228,7 @@
         "loanPurpose",
         "purpose"
       ],
-      "frequency": 91
+      "frequency": 90
     },
     "LOANPURPOSE2": {
       "partner_variants": [
@@ -47987,8 +48408,8 @@
         "Applicant CIBIL_NAME",
         "CIBILNAME",
         "Name Of Bureau",
-        "bureauName",
         "cibilType",
+        "coApplicant1bureauName",
         "nameOfBureau"
       ],
       "frequency": 23
@@ -48019,7 +48440,7 @@
       "partner_variants": [
         "Monthly Outgoing EMI"
       ],
-      "frequency": 19
+      "frequency": 18
     },
     "NUMBEROFINSTALMENTS": {
       "partner_variants": [
@@ -48522,13 +48943,13 @@
         "maxOverdueTradeline",
         "overdueAmountAsOnDate"
       ],
-      "frequency": 39
+      "frequency": 38
     },
     "OVERDUETYPE": {
       "partner_variants": [
         "Overdue type"
       ],
-      "frequency": 21
+      "frequency": 20
     },
     "PANNUMBER": {
       "partner_variants": [
@@ -48551,7 +48972,7 @@
         "PartnerCode",
         "partnerCode"
       ],
-      "frequency": 111
+      "frequency": 110
     },
     "PARTNERLOANAMOUNT": {
       "partner_variants": [
@@ -48593,7 +49014,7 @@
         "ProductCode",
         "productCode"
       ],
-      "frequency": 111
+      "frequency": 110
     },
     "PRODUCTTYPE": {
       "partner_variants": [
@@ -48642,7 +49063,7 @@
         "repaymentFrequency",
         "tenureFrequency"
       ],
-      "frequency": 113
+      "frequency": 112
     },
     "REVENUE GROWTH": {
       "partner_variants": [
@@ -48716,7 +49137,7 @@
       "partner_variants": [
         "Total Repayment"
       ],
-      "frequency": 32
+      "frequency": 31
     },
     "TRANCHENUMBER": {
       "partner_variants": [
@@ -48918,7 +49339,7 @@
         "Udyam CertificateLink",
         "udyamCertificateLink"
       ],
-      "frequency": 11
+      "frequency": 10
     },
     "UDYAMNOTYPE": {
       "partner_variants": [
@@ -49049,12 +49470,6 @@
       ],
       "frequency": 1
     },
-    "VOTERID": {
-      "partner_variants": [
-        "vclPreviousLoanId"
-      ],
-      "frequency": 2
-    },
     "reject_reason": {
       "partner_variants": [
         "reject_reason"
@@ -49075,19 +49490,19 @@
         "tenure",
         "tenureInMonths"
       ],
-      "frequency": 70
+      "frequency": 69
     }
   },
   "tier_counts": {
-    "tier1": 56,
-    "tier2": 318,
-    "tier3": 905,
-    "tier4": 2512
+    "tier1": 54,
+    "tier2": 323,
+    "tier3": 914,
+    "tier4": 2529
   },
   "metadata": {
-    "total_mappings": 15102,
-    "total_partners": 133,
-    "generated_at": "2026-04-14T06:35:57.628775Z",
+    "total_mappings": 15081,
+    "total_partners": 132,
+    "generated_at": "2026-04-23T10:37:15.052410Z",
     "source": "generic_excel_upload_definition_fields"
   }
 }

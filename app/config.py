@@ -12,11 +12,6 @@ class Settings(BaseSettings):
         "",
         env="PARAMETER_CLASSIFIER_GATEWAY_URL",
     )
-    # Dedicated workflow: remap deterministic LOANPARAMETER* buckets using PUTM catalog
-    loanparameter_refinement_gateway_url: str = Field(
-        "",
-        env="LOANPARAMETER_REFINEMENT_GATEWAY_URL",
-    )
     # Optional: classify partner columns into LOS entity (APPLICANT, LOAN, FEE, …) before matching
     entity_classifier_gateway_url: str = Field(
         "",

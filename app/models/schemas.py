@@ -182,3 +182,55 @@ class SchemaResponse(BaseModel):
     mapped_count: int
     skipped_count: int
     processing_time_ms: float
+
+
+# ── Editable draft/approval session models ─────────────────────────────────────
+
+class EditSessionCreateRequest(BaseModel):
+    client_name: str
+    process_name: str = "COMBINED"
+    master_id: Optional[int] = None
+    created_by: Optional[str] = None
+    mappings: List[Dict[str, Any]] = Field(..., description="Mapping rows (typically /mapping/hybrid-llm output items)")
+
+
+class EditSessionUpdateRequest(BaseModel):
+    client_name: Optional[str] = None
+    process_name: Optional[str] = None
+    master_id: Optional[int] = None
+    updated_by: Optional[str] = None
+    note: Optional[str] = None
+    mappings: Optional[List[Dict[str, Any]]] = None
+
+
+class EditSessionApproveRequest(BaseModel):
+    approved_by: Optional[str] = None
+    # If omitted, the server will use the session's stored master_id.
+    master_id: Optional[int] = None
+    skip_unmatched: bool = False
+
+
+class EditSessionSummary(BaseModel):
+    session_id: str
+    status: str
+    client_name: Optional[str] = None
+    process_name: Optional[str] = None
+    master_id: Optional[int] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    approved_at: Optional[str] = None
+
+
+class EditSessionResponse(BaseModel):
+    session_id: str
+    status: str
+    client_name: str
+    process_name: str
+    master_id: Optional[int] = None
+    created_at: str
+    updated_at: str
+    created_by: Optional[str] = None
+    approved_at: Optional[str] = None
+    approved_by: Optional[str] = None
+    mappings: List[Dict[str, Any]]
+    approval_result: Optional[Dict[str, Any]] = None
