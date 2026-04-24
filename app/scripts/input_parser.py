@@ -3,6 +3,8 @@
 import json
 import logging
 import re
+import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
  
@@ -411,29 +413,212 @@ def parse_excel_input(file_path: str) -> List[dict]:
 # JSON PARSER
 # =========================
 def parse_json_input(file_path: str) -> List[dict]:
-    with open(file_path) as f:
-        data = json.load(f)
- 
-    def flatten(obj, parent=''):
-        items = {}
+    """
+    Nested JSON → field rows.
+
+    Output behavior (generic, not hard-coded):
+    - **column_category**: immediate parent object key
+      Example: "bankingDetails" becomes column_category for its children
+    - **field_name**: leaf key name (e.g. "bankAccountNumber")
+    - **sample_value**: leaf scalar value (often null)
+    """
+    with open(file_path, "r", encoding="utf-8") as f:
+        raw = f.read()
+
+    # 1) Strict JSON first
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        data = None
+
+    def _flatten_nested(
+        obj: Any,
+        path: Optional[List[str]] = None,
+    ) -> List[Tuple[str, str, Any]]:
+        if path is None:
+            path = []
+        out: List[Tuple[str, str, Any]] = []
+
         if isinstance(obj, dict):
             for k, v in obj.items():
-                key = f"{parent}.{k}" if parent else k
-                items.update(flatten(v, key))
-        else:
-            items[parent] = obj
-        return items
- 
-    flat = flatten(data)
- 
-    return [
-        FieldDefinition(
-            field_name=k,
-            column_category="API",
-            sample_value=str(v)
-        ).to_dict()
-        for k, v in flat.items()
-    ]
+                out.extend(_flatten_nested(v, path + [str(k)]))
+            return out
+        if isinstance(obj, list):
+            for i, v in enumerate(obj):
+                out.extend(_flatten_nested(v, path + [str(i)]))
+            return out
+
+        # scalar leaf (including None)
+        field_name = path[-1] if path else ""
+        category = path[-2] if len(path) >= 2 else "API"
+        if field_name:
+            out.append((field_name, category, obj))
+        return out
+
+    if data is not None:
+        flattened = _flatten_nested(data)
+        seen = set()
+        fields: List[dict] = []
+        for field_name, category, sample in flattened:
+            dedup_key = (str(category).strip().lower(), str(field_name).strip().lower())
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+            fields.append(
+                FieldDefinition(
+                    field_name=str(field_name).strip(),
+                    column_category=str(category).strip() or "API",
+                    sample_value=None if sample is None else str(sample),
+                    source_sheet="JSON",
+                ).to_dict()
+            )
+        return fields
+
+    # 2) Fallback: tolerate JSON-like templates with stray text/comments.
+    # Extract `"section": { ... "child": null ... }` and use section as column_category.
+    text = raw
+    text = re.sub(r"//.*?$", "", text, flags=re.M)
+    text = re.sub(r"#.*?$", "", text, flags=re.M)
+
+    section_pat = re.compile(r"\"([A-Za-z0-9_]+)\"\\s*:\\s*\\{", re.M)
+    key_null_pat = re.compile(r"\"([A-Za-z0-9_]+)\"\\s*:\\s*null", re.I)
+
+    fields: List[dict] = []
+    seen = set()
+    stack: List[str] = []
+    i = 0
+    current_section = "API"
+    while i < len(text):
+        m = section_pat.match(text, i)
+        if m:
+            current_section = m.group(1)
+            stack.append(current_section)
+            i = m.end()
+            continue
+        if text[i] == "{":
+            i += 1
+            continue
+        if text[i] == "}":
+            if stack:
+                stack.pop()
+                current_section = stack[-1] if stack else "API"
+            i += 1
+            continue
+        km = key_null_pat.match(text, i)
+        if km:
+            fname = km.group(1)
+            category = current_section or "API"
+            dedup_key = (category.strip().lower(), fname.strip().lower())
+            if dedup_key not in seen:
+                seen.add(dedup_key)
+                fields.append(
+                    FieldDefinition(
+                        field_name=fname.strip(),
+                        column_category=category.strip(),
+                        sample_value=None,
+                        source_sheet="JSON",
+                    ).to_dict()
+                )
+            i = km.end()
+            continue
+        i += 1
+
+    return fields
+
+
+# =========================
+# WORD (.docx) PARSER
+# =========================
+def _docx_extract_text(file_path: str) -> str:
+    """
+    Extract text from a .docx file without external dependencies.
+    """
+    with zipfile.ZipFile(file_path) as zf:
+        xml_bytes = zf.read("word/document.xml")
+    root = ET.fromstring(xml_bytes)
+    ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    parts: List[str] = []
+    for para in root.findall(".//w:p", ns):
+        texts = [t.text for t in para.findall(".//w:t", ns) if t.text]
+        line = "".join(texts).strip()
+        if line:
+            parts.append(line)
+    return "\n".join(parts)
+
+
+def parse_docx_input(file_path: str) -> List[dict]:
+    """
+    Parse a Word .docx where field names are listed as lines or table cells.
+    Strategy: extract paragraph text, split into lines, then keep identifier-like values.
+    """
+    text = _docx_extract_text(file_path)
+    lines = [ln.strip() for ln in re.split(r"[\r\n]+", text) if ln and ln.strip()]
+
+    # If the document contains JSON-like key blocks, preserve parent → child relationship:
+    #   "bankingDetails": { ... "ifscCode": null ... }  => column_category=bankingDetails, field_name=ifscCode
+    section_pat = re.compile(r"\"?([A-Za-z0-9_]+)\"?\s*:\s*\{")
+    key_null_pat = re.compile(r"\"?([A-Za-z0-9_]+)\"?\s*:\s*null\b", re.I)
+    key_scalar_pat = re.compile(r"\"?([A-Za-z0-9_]+)\"?\s*:\s*([A-Za-z0-9_@./-]+)\b")
+
+    seen = set()
+    fields: List[dict] = []
+    current_section = "WORD"
+    section_stack: List[str] = []
+
+    for ln in lines:
+        # Track section headers like: bankingDetails: {
+        sm = section_pat.search(ln)
+        if sm:
+            current_section = sm.group(1)
+            section_stack.append(current_section)
+            continue
+        if "}" in ln and section_stack:
+            # pop one level when braces appear (best-effort)
+            section_stack.pop()
+            current_section = section_stack[-1] if section_stack else "WORD"
+            continue
+
+        # Extract "key: null" as field name (clean: no quotes/braces/null)
+        km = key_null_pat.search(ln)
+        if km:
+            fname = km.group(1).strip()
+            if fname and not _is_header_label(fname) and not _is_purely_numeric(fname) and not _is_dotted_path(fname):
+                dedup_key = (current_section.lower(), fname.lower())
+                if dedup_key not in seen:
+                    seen.add(dedup_key)
+                    fields.append(
+                        FieldDefinition(
+                            field_name=fname,
+                            column_category=current_section,
+                            sample_value=None,
+                            source_sheet="WORD",
+                        ).to_dict()
+                    )
+            continue
+
+        # If line is a plain identifier, accept it as a standalone field
+        cleaned = ln.strip().strip(",")
+        cleaned = cleaned.replace("{", "").replace("}", "").replace('"', "").replace("'", "").strip()
+        if not cleaned:
+            continue
+        if _is_header_label(cleaned) or _is_purely_numeric(cleaned) or _is_dotted_path(cleaned):
+            continue
+        if not _looks_like_identifier(cleaned):
+            continue
+        dedup_key = (current_section.lower(), cleaned.lower())
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        fields.append(
+            FieldDefinition(
+                field_name=cleaned,
+                column_category=current_section,
+                sample_value=None,
+                source_sheet="WORD",
+            ).to_dict()
+        )
+
+    return fields
 
 
 # =========================
@@ -450,6 +635,9 @@ def parse_input(file_path: str) -> List[dict]:
  
     if file_path.suffix == '.json':
         return parse_json_input(str(file_path))
+
+    if file_path.suffix.lower() == '.docx':
+        return parse_docx_input(str(file_path))
  
     raise ValueError("Unsupported file type")
 
