@@ -48,6 +48,170 @@ except ImportError:
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/llm_mapping", tags=["LP Field Mapping"])
 
+def _db_insert_script_template() -> str:
+    # NOTE: This is intentionally self-contained so it can run from the extracted ZIP
+    # without needing the whole FastAPI project on PYTHONPATH.
+    return r'''#!/usr/bin/env python
+"""
+Insert LP Mapping ZIP output into the target DB.
+
+This script is shipped inside the ZIP returned by the FastAPI `/mapping/full-pipeline` endpoint.
+
+What it does
+------------
+- Reads `flat_mappings_*.json` produced by the pipeline.
+- Upserts rows into the TARGET DB table (default: `generic_excel_upload_definition_fields`).
+
+Required environment variables
+------------------------------
+- TARGET_DB_HOST
+- TARGET_DB_NAME
+- TARGET_DB_USER
+- TARGET_DB_PASSWORD
+
+Optional environment variables
+------------------------------
+- TARGET_DB_PORT (default: 3306)
+- GENERIC_MAPPING_TABLE (default: generic_excel_upload_definition_fields)
+
+Example
+-------
+python insert_output_to_db.py --input flat_mappings_client_process.json --master-id 123 --client "ACME" --process "COMBINED"
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from datetime import datetime
+from typing import Any, Dict, List
+
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+
+
+def _env(name: str, default: str | None = None) -> str | None:
+    value = os.getenv(name)
+    if value is None or value == "":
+        return default
+    return value
+
+
+def _get_target_db_url() -> str:
+    host = _env("TARGET_DB_HOST")
+    name = _env("TARGET_DB_NAME") or _env("TARGET_DB_DATABASE")
+    user = _env("TARGET_DB_USER") or _env("TARGET_DB_USERNAME")
+    password = _env("TARGET_DB_PASSWORD") or _env("TARGET_DB_PASS")
+    port = int(_env("TARGET_DB_PORT", "3306") or "3306")
+
+    missing = [k for k, v in {
+        "TARGET_DB_HOST": host,
+        "TARGET_DB_NAME": name,
+        "TARGET_DB_USER": user,
+        "TARGET_DB_PASSWORD": password,
+    }.items() if not v]
+    if missing:
+        raise SystemExit(f"Missing required env vars: {', '.join(missing)}")
+
+    return f"mysql+pymysql://{user}:{password}@{host}:{port}/{name}"
+
+
+def _get_table_name() -> str:
+    return _env("GENERIC_MAPPING_TABLE", "generic_excel_upload_definition_fields") or "generic_excel_upload_definition_fields"
+
+
+def _build_row(mapping: Dict[str, Any], master_id: int, client_name: str, process_name: str) -> Dict[str, Any]:
+    return {
+        "excel_column_name": (mapping.get("partner_field") or "").strip(),
+        "table_column_name": (mapping.get("matched_excel_key") or "").strip(),
+        "partner_api_key":   (mapping.get("json_key") or "").strip(),
+        "master_id":         master_id,
+        "ui_grouping":       (mapping.get("entity") or "OTHER").strip(),
+        "type":              mapping.get("match_type", "unmatched"),
+        "description":       (
+            f"[auto] client={client_name} process={process_name} "
+            f"confidence={round(float(mapping.get('confidence') or 0.0), 4)} "
+            f"needs_review={bool(mapping.get('needs_review', False))}"
+        ),
+        "created_at":        datetime.utcnow(),
+        "updated_at":        datetime.utcnow(),
+        "created_by":        f"llm_mapping_zip:{client_name}",
+    }
+
+
+_UPSERT_SQL = """
+    INSERT INTO `{table}`
+        (excel_column_name, table_column_name, partner_api_key,
+         master_id, ui_grouping,
+         type, description,
+         created_at, updated_at, created_by)
+    VALUES
+        (:excel_column_name, :table_column_name, :partner_api_key,
+         :master_id, :ui_grouping,
+         :type, :description,
+         :created_at, :updated_at, :created_by)
+    ON DUPLICATE KEY UPDATE
+        table_column_name = VALUES(table_column_name),
+        partner_api_key   = VALUES(partner_api_key),
+        ui_grouping       = VALUES(ui_grouping),
+        type              = VALUES(type),
+        description       = VALUES(description),
+        updated_at        = VALUES(updated_at),
+        created_by        = VALUES(created_by)
+"""
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--input", required=True, help="Path to flat_mappings_*.json from the ZIP")
+    ap.add_argument("--master-id", type=int, required=True, help="Value to store in master_id column")
+    ap.add_argument("--client", required=True, help="Client name (for audit columns)")
+    ap.add_argument("--process", default="COMBINED", help="Process name (for audit columns)")
+    ap.add_argument("--skip-unmatched", action="store_true", help="Skip rows that have no matched_excel_key")
+    args = ap.parse_args()
+
+    with open(args.input, "r", encoding="utf-8") as f:
+        mappings: List[Dict[str, Any]] = json.load(f)
+
+    table = _get_table_name()
+    engine = create_engine(_get_target_db_url(), pool_pre_ping=True, pool_recycle=3600)
+    SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+    db = SessionLocal()
+    try:
+        stmt = text(_UPSERT_SQL.format(table=table))
+        inserted = skipped = errors = 0
+
+        for m in mappings:
+            if args.skip_unmatched and not m.get("matched_excel_key"):
+                skipped += 1
+                continue
+            if not (m.get("partner_field") or "").strip():
+                skipped += 1
+                continue
+
+            row = _build_row(m, args.master_id, args.client, args.process)
+            try:
+                db.execute(stmt, row)
+                inserted += 1
+            except Exception as exc:
+                errors += 1
+                print(f"DB write failed for partner_field={m.get('partner_field')!r}: {exc}")
+
+        db.commit()
+        print(f"Done. inserted/updated={inserted} skipped={skipped} errors={errors} table={table}")
+        return 0 if errors == 0 else 2
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'''
+
 
 def _run_build_references_from_db(
     settings: Settings,
@@ -55,28 +219,30 @@ def _run_build_references_from_db(
     mapping_table_override: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Extract PUTM + generic mapping from the source DB, run build_references.py outputs
-    into references_dir, and return the same stats payload as POST /references/build.
+    Fetch PUTM + generic mapping from the source DB (no dumps),
+    build reference dictionaries, and return them + row counts.
     """
-    from app.repository.database import extract_putm_dump, extract_generic_mapping
-
-    dumps_dir = Path(settings.references_dir) / "dumps"
-    dumps_dir.mkdir(parents=True, exist_ok=True)
-
-    putm_path = dumps_dir / "putm_dump.xlsx"
-    mapping_path = dumps_dir / "generic_mapping.csv"
-
-    putm_rows = extract_putm_dump(settings, str(putm_path), putm_table_override)
-    mapping_rows = extract_generic_mapping(settings, str(mapping_path), mapping_table_override)
-
-    result = svc.build_references_from_db_direct(
-        putm_xlsx=str(putm_path),
-        mapping_csv=str(mapping_path),
-        references_dir=settings.references_dir,
-        scripts_dir=settings.scripts_dir,
+    from app.repository.database import fetch_generic_mapping_dataframe, fetch_putm_dataframe
+    from app.scripts.build_references import (
+        AliasRegistryBuilder,
+        EntityRoutingBuilder,
+        FieldDictionaryBuilder,
     )
 
-    return {**result, "putm_rows": putm_rows, "mapping_rows": mapping_rows}
+    putm_df = fetch_putm_dataframe(settings, putm_table_override)
+    generic_df = fetch_generic_mapping_dataframe(settings, mapping_table_override)
+
+    fd = FieldDictionaryBuilder(putm_df).build()
+    ar = AliasRegistryBuilder(generic_df).build()
+    er = EntityRoutingBuilder(generic_df).build()
+
+    return {
+        "putm_rows": len(putm_df),
+        "mapping_rows": len(generic_df),
+        "field_dictionary": fd,
+        "alias_registry": ar,
+        "entity_routing": er,
+    }
 
 
 # ── shared helpers ─────────────────────────────────────────────────────────────
@@ -421,13 +587,13 @@ async def full_pipeline(
     ),
     sheet_filter: str    = Form(None),
     master_id: int       = Form(...,   description="FK stored in master_id column of the mapping table"),
-    save_to_db: bool     = Form(True,  description="Write results to GENERIC_MAPPING_TABLE in TARGET DB"),
+    save_to_db: bool     = Form(False, description="Write results to GENERIC_MAPPING_TABLE in TARGET DB"),
     skip_unmatched: bool = Form(False, description="Skip rows with no matched_excel_key when writing to DB"),
     include_build_references: bool = Form(
-        True,
+        False,
         description=(
-            "Extract from source DB, rebuild field_dictionary / alias_registry / entity_routing "
-            "before mapping (same as POST /references/build), and add those JSON files under references/ in the ZIP"
+            "Fetch from source DB and rebuild field_dictionary / alias_registry / entity_routing "
+            "before mapping, and add those JSON files under references/ in the ZIP (no dumps written)"
         ),
     ),
     settings: Settings   = Depends(get_settings),
@@ -448,7 +614,11 @@ async def full_pipeline(
         tmp = _save_upload(file)
 
         if include_build_references:
-            ref_meta = _run_build_references_from_db(settings)
+            ref_meta = _run_build_references_from_db(
+                settings,
+                putm_table_override=None,
+                mapping_table_override=None,
+            )
 
         # ── Phase 1: deterministic ─────────────────────────────────────────────
         p1 = svc.run_deterministic(
@@ -564,6 +734,11 @@ async def full_pipeline(
         zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.write(excel_path, arcname=excel_path.name)
+            # flat mappings for DB/script usage (same dicts used by db_writer.upsert_mappings)
+            zf.writestr(
+                f"flat_mappings_{safe_client_name}_{safe_process_name}.json",
+                json.dumps(all_mappings, indent=2, ensure_ascii=False),
+            )
             zf.writestr(
                 f"nested_mapping_{safe_client_name}_{safe_process_name}.json",
                 json.dumps(nested_result["mappings"], indent=2, ensure_ascii=False),
@@ -572,16 +747,21 @@ async def full_pipeline(
                 f"schema_{safe_client_name}_{safe_process_name}.json",
                 json.dumps(schema_result["schema"], indent=2, ensure_ascii=False),
             )
-            if include_build_references:
-                ref_dir = Path(settings.references_dir)
-                for fname in (
-                    "field_dictionary.json",
-                    "alias_registry.json",
-                    "entity_routing.json",
-                ):
-                    fp = ref_dir / fname
-                    if fp.is_file():
-                        zf.write(fp, arcname=f"references/{fname}")
+            # script to insert output into DB after download
+            zf.writestr("insert_output_to_db.py", _db_insert_script_template())
+            if include_build_references and ref_meta:
+                zf.writestr(
+                    "references/field_dictionary.json",
+                    json.dumps(ref_meta["field_dictionary"], indent=2, ensure_ascii=False),
+                )
+                zf.writestr(
+                    "references/alias_registry.json",
+                    json.dumps(ref_meta["alias_registry"], indent=2, ensure_ascii=False),
+                )
+                zf.writestr(
+                    "references/entity_routing.json",
+                    json.dumps(ref_meta["entity_routing"], indent=2, ensure_ascii=False),
+                )
 
         zip_buffer.seek(0)
         background_tasks.add_task(_safe_unlink, tmp)
@@ -606,6 +786,8 @@ async def full_pipeline(
             headers=response_headers,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Full pipeline failed")
         raise HTTPException(status_code=500, detail=str(e))
