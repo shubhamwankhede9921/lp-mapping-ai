@@ -452,25 +452,6 @@ async function buildPreview(file: File, maxRows: number): Promise<FilePreview> {
   const mime = file.type || "application/octet-stream";
   const lower = file.name.toLowerCase();
 
-  if (lower.endsWith(".json")) {
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text) as unknown;
-      const pretty = JSON.stringify(parsed, null, 2);
-      const lines = pretty.split("\n");
-      const shown = lines.slice(0, maxRows);
-      return {
-        fileName: file.name,
-        mime: file.type || "application/json",
-        rows: shown.map((l) => [l]),
-        truncated: lines.length > maxRows,
-      };
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to parse JSON file.";
-      return { fileName: file.name, mime, rows: [], truncated: false, error: msg };
-    }
-  }
-
   if (lower.endsWith(".csv") || lower.endsWith(".tsv") || lower.endsWith(".txt")) {
     const text = await file.text();
     const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
@@ -521,7 +502,7 @@ async function buildPreview(file: File, maxRows: number): Promise<FilePreview> {
     mime,
     rows: [],
     truncated: false,
-    error: "Unsupported file type for preview. Upload .json/.csv/.tsv or an Excel workbook.",
+    error: "Unsupported file type for preview. Upload .csv/.tsv for in-app preview.",
   };
 }
 
@@ -539,7 +520,7 @@ function PreviewPanel({ preview }: { preview: FilePreview | null }) {
       <div className="panel-header">
         <div>
           <div className="panel-title">
-            File preview
+            Excel preview
             <span className="file-name-tag">📄 {preview.fileName}</span>
           </div>
           <div className="panel-desc">
@@ -751,7 +732,6 @@ export default function App() {
 
   const [fpFile, setFpFile] = useState<File | null>(null);
   const [fpPreview, setFpPreview] = useState<FilePreview | null>(null);
-  const [fpInputMode, setFpInputMode] = useState<"excel" | "json">("excel");
   const [fpDone, setFpDone] = useState(false);
   const [fpZipUrl, setFpZipUrl] = useState<string | null>(null);
   const [fpZipName, setFpZipName] = useState<string | null>(null);
@@ -2016,12 +1996,12 @@ export default function App() {
                     <input
                       ref={detInputRef}
                       type="file"
-                      accept=".xlsx,.xls,.csv,.json"
+                      accept=".xlsx,.xls,.csv"
                       onChange={(e) => void onPickFile("det", e.target.files?.[0] ?? null)}
                     />
                     <div className="upload-icon">📎</div>
-                    <div className="upload-title">{detFile ? detFile.name : "Drop partner file here"}</div>
-                    <div className="upload-hint">Supports .xlsx, .xls, .csv, .json</div>
+                    <div className="upload-title">{detFile ? detFile.name : "Drop partner Excel / CSV here"}</div>
+                    <div className="upload-hint">Supports .xlsx, .xls, .csv</div>
                   </div>
 
                   <div className="action-bar">
@@ -2063,12 +2043,12 @@ export default function App() {
                     <input
                       ref={hybInputRef}
                       type="file"
-                      accept=".xlsx,.xls,.csv,.json"
+                      accept=".xlsx,.xls,.csv"
                       onChange={(e) => void onPickFile("hyb", e.target.files?.[0] ?? null)}
                     />
                     <div className="upload-icon">⚡</div>
                     <div className="upload-title">{hybFile ? hybFile.name : "Drop partner file here"}</div>
-                    <div className="upload-hint">Supports .xlsx, .xls, .csv, .json</div>
+                    <div className="upload-hint">Supports .xlsx, .xls, .csv</div>
                   </div>
 
                   <div className="action-bar">
@@ -2139,55 +2119,16 @@ export default function App() {
                   </span>
                 </div>
                 <div className="panel-body">
-                  <div className="field" style={{ marginBottom: "0.75rem" }}>
-                    <label className="field-label">Input type</label>
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        className={`btn ${fpInputMode === "excel" ? "btn-primary" : "btn-secondary"}`}
-                        onClick={() => {
-                          setFpInputMode("excel");
-                          setFpFile(null);
-                          setFpPreview(null);
-                          setFpDone(false);
-                        }}
-                        disabled={loading}
-                      >
-                        Upload Excel
-                      </button>
-                      <button
-                        type="button"
-                        className={`btn ${fpInputMode === "json" ? "btn-primary" : "btn-secondary"}`}
-                        onClick={() => {
-                          setFpInputMode("json");
-                          setFpFile(null);
-                          setFpPreview(null);
-                          setFpDone(false);
-                        }}
-                        disabled={loading}
-                      >
-                        Upload JSON
-                      </button>
-                    </div>
-                    <div className="panel-desc" style={{ marginTop: 6 }}>
-                      {fpInputMode === "excel"
-                        ? "Use partner Excel/CSV fields. (.xlsx/.xls/.csv)"
-                        : "Use a JSON schema payload; server will flatten paths. (.json)"}
-                    </div>
-                  </div>
-
                   <div className="upload-zone" onClick={() => fpInputRef.current?.click()}>
                     <input
                       ref={fpInputRef}
                       type="file"
-                      accept={fpInputMode === "json" ? ".json" : ".xlsx,.xls,.csv"}
+                      accept=".xlsx,.xls,.csv"
                       onChange={(e) => void onPickFile("fp", e.target.files?.[0] ?? null)}
                     />
                     <div className="upload-icon">🚀</div>
                     <div className="upload-title">{fpFile ? fpFile.name : "Drop partner file here"}</div>
-                    <div className="upload-hint">
-                      {fpInputMode === "json" ? "Supports .json" : "Supports .xlsx, .xls, .csv"}
-                    </div>
+                    <div className="upload-hint">Supports .xlsx, .xls, .csv</div>
                   </div>
 
                   <div className="field">

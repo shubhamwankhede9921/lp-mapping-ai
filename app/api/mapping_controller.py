@@ -200,7 +200,7 @@ async def build_references(
 @router.post(
     "/mapping/deterministic",
     response_model=DeterministicResponse,
-    summary="Phase 1 — deterministic alias + exact matching (upload .xlsx/.xls OR .json)",
+    summary="Phase 1 — deterministic alias + exact matching",
 )
 async def deterministic(
     file: UploadFile  = File(...),
@@ -274,9 +274,6 @@ async def deterministic(
             llm_prompts_count=len(eps),
             stats=_to_stats(stats_raw),
         )
-    except ValueError as e:
-        # input_parser.parse_input raises ValueError for unsupported file types
-        raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -291,7 +288,7 @@ async def deterministic(
 @router.post(
     "/mapping/hybrid-llm",
     response_model=HybridLLMResponse,
-    summary="Phase 1 + 2 — deterministic then fuzzy/embedding/LLM (upload .xlsx/.xls OR .json)",
+    summary="Phase 1 + 2 — deterministic then fuzzy/embedding/LLM",
 )
 async def hybrid_llm(
     file: UploadFile         = File(...),
@@ -401,8 +398,6 @@ async def hybrid_llm(
             engine_breakdown=breakdown,
         )
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Hybrid+LLM mapping failed")
         raise HTTPException(status_code=500, detail=str(e))
@@ -414,7 +409,7 @@ async def hybrid_llm(
 
 @router.post(
     "/mapping/full-pipeline",
-    summary="All phases → ZIP outputs (upload .xlsx/.xls OR .json)",
+    summary="All phases → ZIP with Excel, nested mapping JSON, schema JSON, optional reference JSONs, and optional DB write",
 )
 async def full_pipeline(
     background_tasks: BackgroundTasks,
@@ -613,8 +608,6 @@ async def full_pipeline(
             headers=response_headers,
         )
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Full pipeline failed")
         raise HTTPException(status_code=500, detail=str(e))
