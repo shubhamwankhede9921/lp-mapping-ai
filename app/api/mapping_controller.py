@@ -27,10 +27,16 @@ from app.models.schemas import (
     LOSJsonRequest,
     NestedMappingResponse,
     SchemaResponse,
+    EditSessionApproveRequest,
+    EditSessionCreateRequest,
+    EditSessionResponse,
+    EditSessionSummary,
+    EditSessionUpdateRequest,
 )
 from app.repository import database as db_repo
 from app.repository.db_writer import upsert_mappings   # opens its own target-DB connection
 from app.services import mapping_service as svc
+from app.services import edit_session_store as session_store
 
 from app.utils.los_json_builder import (
     _is_skippable,
@@ -240,8 +246,11 @@ def _run_build_references_from_db(
     putm_path = dumps_dir / "putm_dump.xlsx"
     mapping_path = dumps_dir / "generic_mapping.csv"
 
-    putm_rows = extract_putm_dump(settings, str(putm_path), putm_table_override)
-    mapping_rows = extract_generic_mapping(settings, str(mapping_path), mapping_table_override)
+    putm_df = fetch_putm_dataframe(settings, putm_table_override)
+    mapping_df = fetch_generic_mapping_dataframe(settings, mapping_table_override)
+    putm_df.to_excel(putm_path, index=False)
+    mapping_df.to_csv(mapping_path, index=False, encoding="utf-8")
+    putm_rows, mapping_rows = len(putm_df), len(mapping_df)
 
     result = svc.build_references_from_db_direct(
         putm_xlsx=str(putm_path),
@@ -436,6 +445,8 @@ async def deterministic(
         else:
             logger.info("SETTINGS_DEBUG [deterministic]: skipping refinement — use_loanparameter_refinement=False")
 
+        svc.assign_sequential_loanparameter_slots(det)
+
         unm       = result["unmatched_fields"]
         eps       = result["entity_prompts"]
         stats_raw = svc.compute_stats(det)
@@ -544,12 +555,6 @@ async def hybrid_llm(
         )
 
         all_mappings = svc.merge_deterministic_with_hybrid_phase(det_results, phase2)
-        all_mappings = svc.refine_parameter_buckets(
-            all_mappings=all_mappings,
-            settings=settings,
-            client_name=client_name,
-            process_name=process_name,
-        )
         all_mappings = svc.finalize_mappings(
             all_mappings=all_mappings,
             settings=settings,
@@ -611,10 +616,6 @@ async def full_pipeline(
     master_id: int       = Form(...,   description="FK stored in master_id column of the mapping table"),
     save_to_db: bool     = Form(False, description="Write results to GENERIC_MAPPING_TABLE in TARGET DB"),
     skip_unmatched: bool = Form(False, description="Skip rows with no matched_excel_key when writing to DB"),
-    include_sql_insert_script: bool = Form(
-        True,
-        description="(Deprecated: script is always included) If true, include a runnable SQL insert/upsert script in the output ZIP",
-    ),
     include_build_references: bool = Form(
         False,
         description=(
@@ -695,12 +696,6 @@ async def full_pipeline(
         )
 
         all_mappings = svc.merge_deterministic_with_hybrid_phase(det_results, phase2)
-        all_mappings = svc.refine_parameter_buckets(
-            all_mappings=all_mappings,
-            settings=settings,
-            client_name=client_name,
-            process_name=process_name,
-        )
 
         all_mappings = svc.finalize_mappings(
             all_mappings=all_mappings,
@@ -756,22 +751,6 @@ async def full_pipeline(
             process_name=process_name,
         )
 
-        # ── Generate DB upsert SQL script (also saved to pipeline_output) ───────
-        sql_text = generate_upsert_sql_script(
-            mappings=all_mappings,
-            master_id=master_id,
-            client_name=client_name,
-            process_name=process_name,
-            settings=settings,
-            skip_unmatched=skip_unmatched,
-        )
-        sql_filename = f"db_upsert_{safe_client_name}_{safe_process_name}_master_{master_id}.sql"
-        sql_path = out_dir / sql_filename
-        try:
-            sql_path.write_text(sql_text, encoding="utf-8")
-        except Exception as exc:
-            logger.error(f"Could not write SQL script to {sql_path}: {exc}")
-
         # ── Assemble ZIP ───────────────────────────────────────────────────────
         zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -789,8 +768,6 @@ async def full_pipeline(
                 f"schema_{safe_client_name}_{safe_process_name}.json",
                 json.dumps(schema_result["schema"], indent=2, ensure_ascii=False),
             )
-            # Always include the runnable DB upsert script in the ZIP artifact.
-            zf.writestr(sql_filename, sql_text)
             # script to insert output into DB after download
             zf.writestr("insert_output_to_db.py", _db_insert_script_template())
             if include_build_references and ref_meta:
@@ -913,3 +890,257 @@ async def ref_status(settings: Settings = Depends(get_settings)):
             "size_kb": round(p.stat().st_size / 1024, 1) if p.exists() else None,
         }
     return {"ready": all(v["exists"] for v in status.values()), "files": status}
+
+
+@router.get("/references/putm-keys", summary="List available excel_key ↔ json_key from PUTM (via field_dictionary.json)")
+async def list_putm_keys(
+    process_name: Optional[str] = None,
+    q: Optional[str] = None,
+    limit: int = 2000,
+    settings: Settings = Depends(get_settings),
+) -> Dict[str, Any]:
+    """
+    Returns key pairs derived from PUTM (as persisted in references/field_dictionary.json).
+
+    Query params:
+      - process_name: filter by row primary process_name (case-insensitive); use 'ALL' or omit for no filter
+      - q: substring filter across excel_key/json_key/role/description/example
+      - limit: max rows returned (hard-capped)
+    """
+    fp = settings.refs_path / "field_dictionary.json"
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail="field_dictionary.json not found. Run /references/build first.")
+
+    try:
+        raw = json.loads(fp.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read field_dictionary.json: {e}")
+
+    by_excel_key = raw.get("by_excel_key") or {}
+    if not isinstance(by_excel_key, dict):
+        raise HTTPException(status_code=500, detail="field_dictionary.json is invalid (by_excel_key missing).")
+
+    pn = (process_name or "").strip().upper()
+    if pn in ("", "ALL", "*"):
+        pn = ""
+
+    qq = (q or "").strip().lower()
+    hard_cap = 50000
+    limit = max(1, min(int(limit or 2000), hard_cap))
+
+    def _row_matches_process_filter(
+        filter_pn: str,
+        primary: Optional[str],
+        names_norm: list[str],
+    ) -> bool:
+        """Match the catalog row's primary process only (PUTM rows are per-process in practice)."""
+        if not filter_pn:
+            return True
+        pr = (primary or "").strip().upper()
+        if pr == filter_pn:
+            return True
+        clean_names = [n for n in names_norm if n]
+        if not pr and len(clean_names) == 1 and clean_names[0] == filter_pn:
+            return True
+        return False
+
+    rows = []
+    processes = set()
+    matched_total = 0
+    for excel_key, meta in by_excel_key.items():
+        if not isinstance(meta, dict):
+            continue
+        ek = str(excel_key or "").strip()
+        jk = str(meta.get("json_key") or "").strip()
+        role = str(meta.get("role") or "").strip().upper() or None
+        primary_process = str(meta.get("process_name") or "").strip().upper() or None
+        desc = meta.get("description")
+        example = meta.get("example")
+        process_names = meta.get("process_names") if isinstance(meta.get("process_names"), list) else []
+        process_names_norm = [str(x).strip().upper() for x in process_names if str(x).strip()]
+
+        if not ek or not jk:
+            continue
+
+        if pn and not _row_matches_process_filter(pn, primary_process, process_names_norm):
+            continue
+
+        # text search filter
+        if qq:
+            hay = " ".join(
+                [
+                    ek,
+                    jk,
+                    role or "",
+                    primary_process or "",
+                    " ".join(process_names_norm),
+                    str(desc or ""),
+                    str(example or ""),
+                ]
+            ).lower()
+            if qq not in hay:
+                continue
+
+        matched_total += 1
+
+        if primary_process:
+            processes.add(primary_process)
+        for p in process_names_norm:
+            processes.add(p)
+
+        if len(rows) < limit:
+            rows.append(
+                {
+                    "excel_key": ek,
+                    "json_key": jk,
+                    "role": role,
+                    "process_name": primary_process,
+                    "process_names": process_names_norm,
+                    "description": desc,
+                    "example": example,
+                }
+            )
+
+    rows.sort(key=lambda r: (r.get("process_name") or "", r.get("excel_key") or ""))
+    return {
+        "total": len(rows),
+        "matched_total": matched_total,
+        "truncated": matched_total > len(rows),
+        "limit": limit,
+        "processes": sorted([p for p in processes if p]),
+        "rows": rows,
+    }
+
+
+# ── 7. Edit sessions (draft → approve → DB write) ─────────────────────────────
+
+@router.get(
+    "/edit-sessions",
+    response_model=list[EditSessionSummary],
+    summary="List editable mapping sessions",
+)
+async def list_edit_sessions(settings: Settings = Depends(get_settings)):
+    return session_store.list_sessions(output_path=settings.output_path)
+
+
+@router.post(
+    "/edit-sessions",
+    response_model=EditSessionResponse,
+    summary="Create an editable mapping session (draft)",
+)
+async def create_edit_session(
+    request: EditSessionCreateRequest,
+    settings: Settings = Depends(get_settings),
+):
+    data = session_store.create_session(
+        output_path=settings.output_path,
+        client_name=request.client_name,
+        process_name=request.process_name,
+        master_id=request.master_id,
+        mappings=request.mappings,
+        created_by=request.created_by,
+    )
+    return EditSessionResponse(**data)
+
+
+@router.get(
+    "/edit-sessions/{session_id}",
+    response_model=EditSessionResponse,
+    summary="Get an editable mapping session",
+)
+async def get_edit_session(session_id: str, settings: Settings = Depends(get_settings)):
+    try:
+        data = session_store.get_session(output_path=settings.output_path, session_id=session_id)
+        return EditSessionResponse(**data)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+
+@router.put(
+    "/edit-sessions/{session_id}",
+    response_model=EditSessionResponse,
+    summary="Update an editable mapping session (draft only)",
+)
+async def update_edit_session(
+    session_id: str,
+    request: EditSessionUpdateRequest,
+    settings: Settings = Depends(get_settings),
+):
+    try:
+        data = session_store.update_session(
+            output_path=settings.output_path,
+            session_id=session_id,
+            mappings=request.mappings,
+            client_name=request.client_name,
+            process_name=request.process_name,
+            master_id=request.master_id,
+            updated_by=request.updated_by,
+            note=request.note,
+        )
+        return EditSessionResponse(**data)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Session not found")
+    except PermissionError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@router.delete(
+    "/edit-sessions/{session_id}",
+    summary="Delete an editable mapping session",
+)
+async def delete_edit_session(session_id: str, settings: Settings = Depends(get_settings)):
+    try:
+        # allow deleting any session (draft/approved) - simple cleanup
+        session_store.delete_session(output_path=settings.output_path, session_id=session_id)
+        return {"status": "deleted", "session_id": session_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/edit-sessions/{session_id}/approve",
+    response_model=EditSessionResponse,
+    summary="Approve edited results and write to TARGET DB",
+)
+async def approve_edit_session(
+    session_id: str,
+    request: EditSessionApproveRequest,
+    settings: Settings = Depends(get_settings),
+):
+    try:
+        session = session_store.get_session(output_path=settings.output_path, session_id=session_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.get("status") != "draft":
+        raise HTTPException(status_code=409, detail="Only draft sessions can be approved")
+
+    master_id = request.master_id if request.master_id is not None else session.get("master_id")
+    if master_id is None:
+        raise HTTPException(status_code=400, detail="master_id is required to approve and write to DB")
+
+    mappings = session.get("mappings") or []
+    if not isinstance(mappings, list):
+        raise HTTPException(status_code=400, detail="Session mappings are invalid (expected list)")
+
+    # Write to target DB using the edited mappings as-is.
+    try:
+        db_result = upsert_mappings(
+            mappings=mappings,
+            master_id=int(master_id),
+            client_name=session.get("client_name") or "",
+            process_name=session.get("process_name") or "",
+            settings=settings,
+            skip_unmatched=bool(request.skip_unmatched),
+        )
+    except Exception as e:
+        logger.exception("Approval DB write failed")
+        raise HTTPException(status_code=500, detail=f"DB write failed: {e}")
+
+    approved = session_store.approve_session(
+        output_path=settings.output_path,
+        session_id=session_id,
+        approved_by=request.approved_by,
+        approval_result={"db_result": db_result, "master_id": int(master_id)},
+    )
+    return EditSessionResponse(**approved)
