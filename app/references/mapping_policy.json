@@ -1,0 +1,52 @@
+{
+  "structured_fee_putm_base_keys": [
+    "APPLICANTFEEPERCENTAGE",
+    "APPLICANTPROCESSINGFEE",
+    "GSTFEE",
+    "OTHERFEE",
+    "PROCESSINGFEE",
+    "PROCESSINGFEESERVICETAX"
+  ],
+  "fee_putm_leaves": [
+    {
+      "excel_key": "APPLICANTFEEPERCENTAGE",
+      "base_key": "APPLICANTFEEPERCENTAGE",
+      "json_key": "loanAccount.processingFeePercentage"
+    },
+    {
+      "excel_key": "APPLICANTPROCESSINGFEE",
+      "base_key": "APPLICANTPROCESSINGFEE",
+      "json_key": "loanAccount.processingFeeInPaisa"
+    },
+    {
+      "excel_key": "GSTFEE",
+      "base_key": "GSTFEE",
+      "json_key": "loanAccount.loanAccountAdditional.gstFee"
+    },
+    {
+      "excel_key": "OTHERFEE",
+      "base_key": "OTHERFEE",
+      "json_key": "loanAccount.otherFee"
+    },
+    {
+      "excel_key": "PROCESSINGFEE",
+      "base_key": "PROCESSINGFEE",
+      "json_key": "loanAccount.processingFeeInPaisa"
+    },
+    {
+      "excel_key": "PROCESSINGFEESERVICETAX",
+      "base_key": "PROCESSINGFEESERVICETAX",
+      "json_key": "loanAccount.processingFeeServiceTax"
+    }
+  ],
+  "llm_fee_mapping_note": "Prefer a concrete catalogue excel_key from structured_fee_putm_base_keys (see fee_putm_leaves for json paths) for fee/charge-style columns with entity FEE before using generic excel_key FEE. Add new PUTM leaves to the catalogue first; this list is regenerated when references are built.",
+  "_auto_discovered_base_keys": [
+    "APPLICANTFEEPERCENTAGE",
+    "APPLICANTPROCESSINGFEE",
+    "GSTFEE",
+    "OTHERFEE",
+    "PROCESSINGFEE",
+    "PROCESSINGFEESERVICETAX"
+  ],
+  "_policy_generated_at": "2026-04-23T10:37:15.120444+00:00"
+}

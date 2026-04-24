@@ -7,7 +7,6 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -66,6 +65,7 @@ app.add_middleware(
 app.include_router(router)
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(
         "main:app",
         host=settings.app_host,

@@ -1151,32 +1151,10 @@ def run_hybrid_llm(
     # 2c — LLM — only LOANPARAMETER* buckets; do not re-send alias_tier4 rows that
     # already map to concrete catalogue keys (avoids gateway/classifier overwriting
     # keys like APPLICATIONFILEID, LOANID, etc.).
-    deterministic_llm_recheck_rows = [
-        item
-        for item in (deterministic_matches or [])
-        if isinstance(item, dict)
-        and _field_id(item)
-        and (item.get("matched_excel_key") or "").upper().startswith("LOANPARAMETER")
-    ]
-    if deterministic_llm_recheck_rows:
-        lp_ids = [
-            (_field_id(i) or "").strip()
-            for i in deterministic_llm_recheck_rows
-            if (i.get("matched_excel_key") or "").upper().startswith("LOANPARAMETER")
-        ]
-        t4_ids = [
-            (_field_id(i) or "").strip()
-            for i in deterministic_llm_recheck_rows
-            if (i.get("match_type") or "").strip() == "alias_tier4"
-        ]
-        logger.info(
-            "Including deterministic LOANPARAMETER* rows for LLM verification: count=%d "
-            "fields=%s (alias_tier4 among them=%d: %s)",
-            len(lp_ids),
-            lp_ids,
-            len(t4_ids),
-            t4_ids,
-        )
+    # IMPORTANT: Do not send deterministic LOANPARAMETER* rows to the main LLM call.
+    # Those rows are handled by the dedicated PUTM refinement step (optional) and are
+    # still provided as context via `loanparameter_assigned_fields` to avoid duplicates.
+    deterministic_llm_recheck_rows: List[Dict[str, Any]] = []
 
     llm_input_fields = _dedupe_fields(
         list(review_candidates_by_field.values())
@@ -1185,7 +1163,6 @@ def run_hybrid_llm(
             for item in remaining
             if _field_id(item) not in review_candidates_by_field
         ]
-        + deterministic_llm_recheck_rows
     )
     if use_llm and llm_input_fields:
         try:
