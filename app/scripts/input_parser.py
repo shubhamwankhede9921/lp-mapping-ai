@@ -411,29 +411,258 @@ def parse_excel_input(file_path: str) -> List[dict]:
 # JSON PARSER
 # =========================
 def parse_json_input(file_path: str) -> List[dict]:
-    with open(file_path) as f:
-        data = json.load(f)
- 
-    def flatten(obj, parent=''):
-        items = {}
-        if isinstance(obj, dict):
-            for k, v in obj.items():
-                key = f"{parent}.{k}" if parent else k
-                items.update(flatten(v, key))
-        else:
-            items[parent] = obj
-        return items
- 
-    flat = flatten(data)
- 
-    return [
-        FieldDefinition(
-            field_name=k,
-            column_category="API",
-            sample_value=str(v)
-        ).to_dict()
-        for k, v in flat.items()
-    ]
+    raw = Path(file_path).read_text(encoding="utf-8", errors="ignore")
+
+    def _extract_null_fields_from_jsonish(text: str) -> List[dict]:
+        """
+        Extract partner fields from "JSON-ish" text that might not be valid JSON.
+
+        Rule:
+        - Any `"someKey": null` is treated as a partner field named `someKey`.
+
+        column_category:
+        - If an object contains `column_category` / `columnCategory`, it applies to
+          fields under that object.
+        - Otherwise, use the current **section** (nearest parent object key),
+          excluding container keys like `loanAccounts` / `loanAccount`, or "API".
+        """
+        s = text.lstrip("\ufeff")
+
+        # Remove inline notes like: null, - bureau/banking  /  "x", - note
+        s = re.sub(
+            r"(null|true|false|\"[^\"]*\")\s*,\s*-\s*[^,\r\n]+",
+            r"\1",
+            s,
+            flags=re.I,
+        )
+        # Drop standalone prose lines that are not JSON (no colon and no brace/bracket)
+        s = re.sub(r"(?m)^\s*[^:\{\}\[\]\"]+\s*$", "", s)
+        # Remove trailing commas before } or ]
+        s = re.sub(r",\s*([}\]])", r"\1", s)
+
+        # Tokenizer: yields ("str", value) and ("sym", one_of_structural) and ("lit", literal)
+        def tokens(src: str):
+            i = 0
+            n = len(src)
+            while i < n:
+                ch = src[i]
+                if ch.isspace():
+                    i += 1
+                    continue
+                if ch in "{}[]:,":
+                    yield ("sym", ch)
+                    i += 1
+                    continue
+                if ch == '"':
+                    i += 1
+                    buf = []
+                    while i < n:
+                        c = src[i]
+                        if c == "\\":
+                            if i + 1 < n:
+                                buf.append(src[i + 1])
+                                i += 2
+                                continue
+                            i += 1
+                            continue
+                        if c == '"':
+                            i += 1
+                            break
+                        buf.append(c)
+                        i += 1
+                    yield ("str", "".join(buf))
+                    continue
+
+                # literals: null/true/false (we don't need numbers)
+                if src[i : i + 4].lower() == "null":
+                    yield ("lit", "null")
+                    i += 4
+                    continue
+                if src[i : i + 4].lower() == "true":
+                    yield ("lit", "true")
+                    i += 4
+                    continue
+                if src[i : i + 5].lower() == "false":
+                    yield ("lit", "false")
+                    i += 5
+                    continue
+
+                # Unknown token (e.g. unquoted prose) — skip until next whitespace or structural char
+                j = i + 1
+                while j < n and (not src[j].isspace()) and src[j] not in "{}[]:,\"":
+                    j += 1
+                i = j
+
+        # Context stack: each entry is (object_key, category_override)
+        stack: List[tuple[Optional[str], Optional[str]]] = []
+
+        _IGNORE_CATEGORY_KEYS = {"loanaccounts", "loanaccount"}
+
+        def _category_from_stack_parts(parts: List[str]) -> str:
+            cleaned = [p for p in parts if p and p.strip().lower() not in _IGNORE_CATEGORY_KEYS]
+            return (cleaned[-1] if cleaned else "") or "API"
+
+        def current_category() -> str:
+            # nearest override wins
+            for _k, c in reversed(stack):
+                if c:
+                    return c
+            parts = [k for (k, _c) in stack if k]
+            return _category_from_stack_parts(parts)
+
+        out: List[dict] = []
+        seen: set[str] = set()
+
+        pending_key: Optional[str] = None
+        expecting_value = False
+        last_sym: Optional[str] = None
+
+        it = iter(tokens(s))
+        for typ, val in it:
+            if typ == "sym":
+                last_sym = val
+                if val == "{":
+                    # root object or object value; if it was after a key, push that key
+                    if pending_key is not None and expecting_value:
+                        stack.append((pending_key, None))
+                        pending_key = None
+                        expecting_value = False
+                    else:
+                        stack.append((None, None))
+                elif val == "}":
+                    if stack:
+                        stack.pop()
+                    pending_key = None
+                    expecting_value = False
+                elif val == ":":
+                    expecting_value = True
+                elif val == ",":
+                    pending_key = None
+                    expecting_value = False
+                continue
+
+            if typ == "str":
+                # If this string is a key (next should be :), record it.
+                if not expecting_value:
+                    pending_key = val
+                else:
+                    # value is a string
+                    if pending_key in ("column_category", "columnCategory", "COLUMN_CATEGORY"):
+                        # apply category override to current object (top of stack)
+                        if stack:
+                            k0, _ = stack.pop()
+                            stack.append((k0, val.strip() or None))
+                    pending_key = None
+                    expecting_value = False
+                continue
+
+            if typ == "lit":
+                if expecting_value and pending_key:
+                    if pending_key in ("column_category", "columnCategory", "COLUMN_CATEGORY"):
+                        # ignore non-string category
+                        pending_key = None
+                        expecting_value = False
+                        continue
+                    if val.lower() == "null":
+                        field_name = (pending_key or "").strip()
+                        if field_name and not _is_header_label(field_name) and not _is_purely_numeric(field_name):
+                            dedup = f"{current_category().lower()}||{field_name.lower()}"
+                            if dedup not in seen:
+                                seen.add(dedup)
+                                out.append(
+                                    FieldDefinition(
+                                        field_name=field_name,
+                                        column_category=current_category(),
+                                        sample_value=None,
+                                        source_sheet="API",
+                                    ).to_dict()
+                                )
+                    pending_key = None
+                    expecting_value = False
+                continue
+
+        return out
+
+    def _sanitize_jsonish(src: str) -> str:
+        """
+        Make a best-effort attempt to convert 'doc style' JSON into valid JSON:
+        - strips inline notes like: null, - bureau/banking
+        - removes standalone prose lines (e.g. 'for salaried')
+        - removes trailing commas before } or ]
+        """
+        s = src
+        s = re.sub(
+            r"(null|true|false|\"[^\"]*\")\s*,\s*-\s*[^,\r\n]+",
+            r"\1",
+            s,
+            flags=re.I,
+        )
+        s = re.sub(r"(?m)^\s*[^:\{\}\[\]\"]+\s*$", "", s)
+        s = re.sub(r",\s*([}\]])", r"\1", s)
+        return s
+
+    try:
+        # Prefer sanitized parse so we stay on the structured-path logic (better categories)
+        data = json.loads(_sanitize_jsonish(raw))
+    except Exception:
+        # Fallback: still not valid JSON. Extract `"key": null` fields directly.
+        return _extract_null_fields_from_jsonish(raw)
+
+    results: List[dict] = []
+
+    _IGNORE_CATEGORY_KEYS = {"loanaccounts", "loanaccount"}
+
+    def _default_category_from_path_parts(path_parts: List[str]) -> str:
+        cleaned = [
+            p for p in path_parts
+            if p and str(p).strip().lower() not in _IGNORE_CATEGORY_KEYS
+        ]
+        return (str(cleaned[-1]).strip() if cleaned else "") or "API"
+
+    def _category_for(node: Any, path_parts: List[str]) -> str:
+        # If node declares a category explicitly, prefer it.
+        if isinstance(node, dict):
+            for key in ("column_category", "columnCategory", "COLUMN_CATEGORY"):
+                v = node.get(key)
+                if isinstance(v, str) and v.strip():
+                    return v.strip()
+        # Otherwise use the nearest parent section key.
+        return _default_category_from_path_parts(path_parts)
+
+    def walk(node: Any, path_parts: List[str], inherited_category: str) -> None:
+        if isinstance(node, dict):
+            # Allow explicit category override at any level
+            here_category = _category_for(node, path_parts) or inherited_category
+            for k, v in node.items():
+                # Don't treat the category metadata key itself as a partner field
+                if str(k) in ("column_category", "columnCategory", "COLUMN_CATEGORY"):
+                    continue
+                walk(v, path_parts + [str(k)], here_category)
+            return
+
+        if isinstance(node, list):
+            for idx, item in enumerate(node):
+                walk(item, path_parts + [str(idx)], inherited_category)
+            return
+
+        # Leaf: partner field is any key whose value is null/None
+        if node is None and path_parts:
+            field_name = str(path_parts[-1]).strip()
+            if not field_name:
+                return
+            if _is_header_label(field_name) or _is_purely_numeric(field_name):
+                return
+            results.append(
+                FieldDefinition(
+                    field_name=field_name,
+                    column_category=inherited_category or "API",
+                    sample_value=None,
+                    source_sheet="API",
+                ).to_dict()
+            )
+
+    walk(data, [], "API")
+    return results
 
 
 # =========================
