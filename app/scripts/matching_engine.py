@@ -947,7 +947,8 @@ def _remap_applicant_putm_to_coapplicant_catalogue(
     m = re.match(r"^APPLICANTCUSTOMER(.+)$", eu)
     if m:
         candidates.append(f"{pref}{m.group(1)}")
-    cand_sub = re.sub(r"^(?i)applicant", pref, src, count=1)
+    # Inline flags must be at the start of the pattern in Python's `re`.
+    cand_sub = re.sub(r"(?i)^applicant", pref, src, count=1)
     if cand_sub.upper() != eu:
         candidates.append(cand_sub.upper())
     m2 = re.match(r"^LOANAPPLICANTPARAM(\d+)$", eu, re.I)

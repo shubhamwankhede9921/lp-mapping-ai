@@ -60,17 +60,25 @@ def _build_row(
     Only columns we actually populate are included;
     all other columns (ui_type, ui_title, length, etc.) keep their DB defaults.
     """
+    excel_col = (mapping.get("partner_field") or "").strip()
+    inferred_type = "date" if "date" in excel_col.lower() else ""
+
+    # Per requirement:
+    # - excel_column_name/table_column_name are written
+    # - partner_api_key is NOT written (leave empty)
+    # - ui_key stores the JSON key used in partner API
+    # - type is "date" when excel_column_name contains "date", else empty
     return {
         # ── core mapping columns ───────────────────────────────────────
-        "excel_column_name": (mapping.get("partner_field") or "").strip(),  # fixed
+        "excel_column_name": excel_col,
         "table_column_name": (mapping.get("matched_excel_key") or "").strip(),
-        "partner_api_key":   (mapping.get("json_key") or "").strip(),
+        "partner_api_key":   "",
+        "ui_key":            (mapping.get("json_key") or "").strip(),
         "master_id":         master_id,
-        "ui_grouping":       (mapping.get("entity") or "OTHER").strip(),    # fixed
+        "ui_grouping":       (mapping.get("entity") or "OTHER").strip(),
 
         # ── audit / traceability columns ──────────────────────────────
-        # 'type' reuses match_type — maps cleanly to the varchar(50) column
-        "type":              mapping.get("match_type", "unmatched"),
+        "type":              inferred_type,
         "description":       (
             f"[auto] client={client_name} process={process_name} "
             f"confidence={round(float(mapping.get('confidence') or 0.0), 4)} "
@@ -94,14 +102,17 @@ _UPSERT_SQL = """
         (excel_column_name, table_column_name, partner_api_key,
          master_id, ui_grouping,
          type, description,
-         created_at, updated_at, created_by)
+         created_at, updated_at, created_by,
+         ui_key)
     VALUES
         (:excel_column_name, :table_column_name, :partner_api_key,
          :master_id, :ui_grouping,
          :type, :description,
-         :created_at, :updated_at, :created_by)
+         :created_at, :updated_at, :created_by,
+         :ui_key)
     ON DUPLICATE KEY UPDATE
         table_column_name = VALUES(table_column_name),
+        ui_key            = VALUES(ui_key),
         partner_api_key   = VALUES(partner_api_key),
         ui_grouping       = VALUES(ui_grouping),
         type              = VALUES(type),

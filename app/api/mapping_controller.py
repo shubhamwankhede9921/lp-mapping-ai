@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, File,
     Form, HTTPException, UploadFile,
+    Body, Query,
 )
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -67,6 +68,14 @@ What it does
 ------------
 - Reads `flat_mappings_*.json` produced by the pipeline.
 - Upserts rows into the TARGET DB table (default: `generic_excel_upload_definition_fields`).
+
+Pipeline field -> DB column
+---------------------------
+- partner_field -> excel_column_name
+- matched_excel_key -> table_column_name
+- json_key -> ui_key
+- master_id -> master_id
+- entity -> ui_grouping
 
 Required environment variables
 ------------------------------
@@ -128,13 +137,16 @@ def _get_table_name() -> str:
 
 
 def _build_row(mapping: Dict[str, Any], master_id: int, client_name: str, process_name: str) -> Dict[str, Any]:
+    excel_col = (mapping.get("partner_field") or "").strip()
+    inferred_type = "date" if "date" in excel_col.lower() else ""
     return {
-        "excel_column_name": (mapping.get("partner_field") or "").strip(),
+        "excel_column_name": excel_col,
         "table_column_name": (mapping.get("matched_excel_key") or "").strip(),
-        "partner_api_key":   (mapping.get("json_key") or "").strip(),
+        "partner_api_key":   "",
+        "ui_key":            (mapping.get("json_key") or "").strip(),
         "master_id":         master_id,
         "ui_grouping":       (mapping.get("entity") or "OTHER").strip(),
-        "type":              mapping.get("match_type", "unmatched"),
+        "type":              inferred_type,
         "description":       (
             f"[auto] client={client_name} process={process_name} "
             f"confidence={round(float(mapping.get('confidence') or 0.0), 4)} "
@@ -142,7 +154,7 @@ def _build_row(mapping: Dict[str, Any], master_id: int, client_name: str, proces
         ),
         "created_at":        datetime.utcnow(),
         "updated_at":        datetime.utcnow(),
-        "created_by":        f"llm_mapping_zip:{client_name}",
+        "created_by":        f"llm_mapping_pipeline:{client_name}",
     }
 
 
@@ -151,14 +163,17 @@ _UPSERT_SQL = """
         (excel_column_name, table_column_name, partner_api_key,
          master_id, ui_grouping,
          type, description,
-         created_at, updated_at, created_by)
+         created_at, updated_at, created_by,
+         ui_key)
     VALUES
         (:excel_column_name, :table_column_name, :partner_api_key,
          :master_id, :ui_grouping,
          :type, :description,
-         :created_at, :updated_at, :created_by)
+         :created_at, :updated_at, :created_by,
+         :ui_key)
     ON DUPLICATE KEY UPDATE
         table_column_name = VALUES(table_column_name),
+        ui_key            = VALUES(ui_key),
         partner_api_key   = VALUES(partner_api_key),
         ui_grouping       = VALUES(ui_grouping),
         type              = VALUES(type),
@@ -228,36 +243,11 @@ def _run_build_references_from_db(
     Fetch PUTM + generic mapping from the source DB (no dumps),
     build reference dictionaries, and return them + row counts.
     """
-<<<<<<< HEAD
     from app.repository.database import fetch_generic_mapping_dataframe, fetch_putm_dataframe
     from app.scripts.build_references import (
         AliasRegistryBuilder,
         EntityRoutingBuilder,
         FieldDictionaryBuilder,
-=======
-    from app.repository.database import (
-        fetch_generic_mapping_dataframe,
-        fetch_putm_dataframe,
-    )
-
-    dumps_dir = Path(settings.references_dir) / "dumps"
-    dumps_dir.mkdir(parents=True, exist_ok=True)
-
-    putm_path = dumps_dir / "putm_dump.xlsx"
-    mapping_path = dumps_dir / "generic_mapping.csv"
-
-    putm_df = fetch_putm_dataframe(settings, putm_table_override)
-    mapping_df = fetch_generic_mapping_dataframe(settings, mapping_table_override)
-    putm_df.to_excel(putm_path, index=False)
-    mapping_df.to_csv(mapping_path, index=False, encoding="utf-8")
-    putm_rows, mapping_rows = len(putm_df), len(mapping_df)
-
-    result = svc.build_references_from_db_direct(
-        putm_xlsx=str(putm_path),
-        mapping_csv=str(mapping_path),
-        references_dir=settings.references_dir,
-        scripts_dir=settings.scripts_dir,
->>>>>>> c46391c1e8125f27b97ba419cb37c2a471e9f6f7
     )
 
     putm_df = fetch_putm_dataframe(settings, putm_table_override)
@@ -306,6 +296,20 @@ def _save_upload(file: UploadFile) -> str:
     shutil.copyfileobj(file.file, tmp)
     tmp.close()
     return tmp.name
+
+
+def _save_json_payload(payload: Any) -> str:
+    """
+    Persist a JSON payload to a temporary file so the existing pipeline
+    (`input_parser.parse_input`) can consume it as a `.json` input.
+    """
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
+    try:
+        tmp.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+        tmp.flush()
+        return tmp.name
+    finally:
+        tmp.close()
 
 
 def _safe_unlink(path: Optional[str]) -> None:
@@ -811,6 +815,163 @@ async def full_pipeline(
         raise
     except Exception as e:
         logger.exception("Full pipeline failed")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        _safe_unlink(tmp)
+
+
+@router.post(
+    "/mapping/full-pipeline-json",
+    summary="Full pipeline from JSON body (no Excel upload) → ZIP outputs",
+)
+async def full_pipeline_json(
+    background_tasks: BackgroundTasks,
+    payload: Dict[str, Any] = Body(..., description="Raw JSON input to be flattened into fields"),
+    client_name: str = Query(...),
+    process_name: str = Query("COMBINED"),
+    use_fuzzy: bool = Query(True),
+    use_embeddings: bool = Query(False),
+    use_llm: bool = Query(True),
+    use_loanparameter_refinement: bool = Query(True),
+    use_llm_entity_classifier: bool = Query(False),
+    master_id: int = Query(..., description="FK stored in master_id column of the mapping table"),
+    save_to_db: bool = Query(False, description="Write results to GENERIC_MAPPING_TABLE in TARGET DB"),
+    skip_unmatched: bool = Query(False, description="Skip rows with no matched_excel_key when writing to DB"),
+    include_build_references: bool = Query(False),
+    settings: Settings = Depends(get_settings),
+):
+    tmp = None
+    ref_meta: Optional[Dict[str, Any]] = None
+    try:
+        tmp = _save_json_payload(payload)
+
+        if include_build_references:
+            ref_meta = _run_build_references_from_db(
+                settings,
+                putm_table_override=None,
+                mapping_table_override=None,
+            )
+
+        # Phase 1: deterministic (JSON input is flattened by input_parser.parse_json_input)
+        p1 = svc.run_deterministic(
+            input_file=tmp,
+            settings=settings,
+            process_name=process_name,
+            sheet_filter=None,
+            client_name=client_name,
+            use_llm_entity_classifier=use_llm_entity_classifier,
+        )
+
+        det_results = p1.get("deterministic_results") or []
+        unmatched = p1["unmatched_fields"]
+        ep = p1["entity_prompts"]
+        fd = p1["field_dictionary"]
+        ar = p1["alias_registry"]
+
+        if use_loanparameter_refinement:
+            det_results = svc.refine_loanparameter_after_deterministic(
+                deterministic_results=det_results,
+                field_dictionary=fd,
+                alias_registry=ar,
+                settings=settings,
+                client_name=client_name,
+                process_name=process_name,
+            ) or det_results
+
+        phase2, _ = svc.run_hybrid_llm(
+            unmatched_fields=unmatched,
+            field_dictionary=fd,
+            alias_registry=ar,
+            entity_prompts=ep,
+            deterministic_matches=det_results,
+            settings=settings,
+            use_fuzzy=use_fuzzy,
+            use_embeddings=use_embeddings,
+            use_llm=use_llm,
+            client_name=client_name,
+            process_name=process_name,
+        )
+
+        all_mappings = svc.merge_deterministic_with_hybrid_phase(det_results, phase2)
+        all_mappings = svc.finalize_mappings(all_mappings=all_mappings, settings=settings)
+
+        db_result = {"inserted": 0, "skipped": 0, "errors": 0}
+        if save_to_db:
+            try:
+                db_result = upsert_mappings(
+                    mappings=all_mappings,
+                    master_id=master_id,
+                    client_name=client_name,
+                    process_name=process_name,
+                    settings=settings,
+                    skip_unmatched=skip_unmatched,
+                )
+            except Exception as db_exc:
+                logger.error(f"DB write failed (non-fatal, ZIP still returned): {db_exc}")
+
+        mapping_list = [
+            {"client_column": m.get("partner_field", ""), "lms_column": m.get("json_key", ""), "entity": m.get("entity", "OTHER")}
+            for m in all_mappings
+        ]
+        builder_input = {"mappings": mapping_list}
+        nested_result = generate_nested_mapping(builder_input)
+        schema_result = generate_schema(builder_input)
+
+        safe_client_name = _sanitize_path_component(client_name, "client")
+        safe_process_name = _sanitize_path_component(process_name, "process")
+
+        out_dir = settings.output_path / safe_client_name
+        out_dir.mkdir(parents=True, exist_ok=True)
+        excel_path = out_dir / f"mapping_{safe_client_name}_{safe_process_name}.xlsx"
+
+        svc.post_process_and_output(
+            all_mappings=all_mappings,
+            settings=settings,
+            output_path=str(excel_path),
+            client_name=client_name,
+            process_name=process_name,
+        )
+
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(excel_path, arcname=excel_path.name)
+            zf.writestr(
+                f"flat_mappings_{safe_client_name}_{safe_process_name}.json",
+                json.dumps(all_mappings, indent=2, ensure_ascii=False),
+            )
+            zf.writestr(
+                f"nested_mapping_{safe_client_name}_{safe_process_name}.json",
+                json.dumps(nested_result["mappings"], indent=2, ensure_ascii=False),
+            )
+            zf.writestr(
+                f"schema_{safe_client_name}_{safe_process_name}.json",
+                json.dumps(schema_result["schema"], indent=2, ensure_ascii=False),
+            )
+            zf.writestr("insert_output_to_db.py", _db_insert_script_template())
+            if include_build_references and ref_meta:
+                zf.writestr("references/field_dictionary.json", json.dumps(ref_meta["field_dictionary"], indent=2, ensure_ascii=False))
+                zf.writestr("references/alias_registry.json", json.dumps(ref_meta["alias_registry"], indent=2, ensure_ascii=False))
+                zf.writestr("references/entity_routing.json", json.dumps(ref_meta["entity_routing"], indent=2, ensure_ascii=False))
+
+        zip_buffer.seek(0)
+        background_tasks.add_task(_safe_unlink, tmp)
+        tmp = None
+
+        return Response(
+            content=zip_buffer.getvalue(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={safe_client_name}_{safe_process_name}_outputs.zip",
+                "X-DB-Inserted": str(db_result["inserted"]),
+                "X-DB-Skipped": str(db_result["skipped"]),
+                "X-DB-Errors": str(db_result["errors"]),
+                "X-Master-Id": str(master_id),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Full pipeline (json) failed")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         _safe_unlink(tmp)
