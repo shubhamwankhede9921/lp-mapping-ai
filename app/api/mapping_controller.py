@@ -228,36 +228,11 @@ def _run_build_references_from_db(
     Fetch PUTM + generic mapping from the source DB (no dumps),
     build reference dictionaries, and return them + row counts.
     """
-<<<<<<< HEAD
     from app.repository.database import fetch_generic_mapping_dataframe, fetch_putm_dataframe
     from app.scripts.build_references import (
         AliasRegistryBuilder,
         EntityRoutingBuilder,
         FieldDictionaryBuilder,
-=======
-    from app.repository.database import (
-        fetch_generic_mapping_dataframe,
-        fetch_putm_dataframe,
-    )
-
-    dumps_dir = Path(settings.references_dir) / "dumps"
-    dumps_dir.mkdir(parents=True, exist_ok=True)
-
-    putm_path = dumps_dir / "putm_dump.xlsx"
-    mapping_path = dumps_dir / "generic_mapping.csv"
-
-    putm_df = fetch_putm_dataframe(settings, putm_table_override)
-    mapping_df = fetch_generic_mapping_dataframe(settings, mapping_table_override)
-    putm_df.to_excel(putm_path, index=False)
-    mapping_df.to_csv(mapping_path, index=False, encoding="utf-8")
-    putm_rows, mapping_rows = len(putm_df), len(mapping_df)
-
-    result = svc.build_references_from_db_direct(
-        putm_xlsx=str(putm_path),
-        mapping_csv=str(mapping_path),
-        references_dir=settings.references_dir,
-        scripts_dir=settings.scripts_dir,
->>>>>>> c46391c1e8125f27b97ba419cb37c2a471e9f6f7
     )
 
     putm_df = fetch_putm_dataframe(settings, putm_table_override)
