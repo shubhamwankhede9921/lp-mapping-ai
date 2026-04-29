@@ -63,16 +63,36 @@ def _build_row(
     excel_col = (mapping.get("partner_field") or "").strip()
     inferred_type = "date" if "date" in excel_col.lower() else ""
 
+    # partner_api_key rule:
+    # - if column_category present (and not a generic label like API/APPLICANT), use:
+    #     loanAccounts.<column_category>.<partner_field>
+    # - else:
+    #     loanAccounts.<partner_field>
+    raw_cat = (mapping.get("column_category") or mapping.get("columnCategory") or "").strip()
+    cat_norm = raw_cat.upper()
+    invalid_cats = {
+        "API",
+        "APPLICANT",
+        "API FIELD MAPPING",
+        "LOAN API WITH BRE CHECK",
+        "MIGRATION API MAPPING",
+        "ONLY COAPPLICANT",
+    }
+    if raw_cat and cat_norm not in invalid_cats:
+        partner_api_key = f"loanAccounts.{raw_cat}.{excel_col}"
+    else:
+        partner_api_key = f"loanAccounts.{excel_col}" if excel_col else ""
+
     # Per requirement:
     # - excel_column_name/table_column_name are written
-    # - partner_api_key is NOT written (leave empty)
+    # - partner_api_key uses the partner dotted key (see rule above)
     # - ui_key stores the JSON key used in partner API
     # - type is "date" when excel_column_name contains "date", else empty
     return {
         # ── core mapping columns ───────────────────────────────────────
         "excel_column_name": excel_col,
         "table_column_name": (mapping.get("matched_excel_key") or "").strip(),
-        "partner_api_key":   "",
+        "partner_api_key":   partner_api_key,
         "ui_key":            (mapping.get("json_key") or "").strip(),
         "master_id":         master_id,
         "ui_grouping":       (mapping.get("entity") or "OTHER").strip(),
