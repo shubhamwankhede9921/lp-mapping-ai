@@ -103,8 +103,8 @@ _GENERIC_QUERY = text("""
         financialForms.generic_excel_upload_definition geud
             ON geudf.master_id = geud.id
     WHERE
-        geud.upload_name = 'Individual Loan Upload v3'
-        AND geud.is_exclude = 0
+        geud.upload_name = :upload_name
+        AND geudf.is_exclude = 0
 """)
  
  
@@ -154,6 +154,8 @@ def fetch_generic_mapping_dataframe(
     Load generic excel definition field rows from the source MySQL database.
     Only active fields (is_exclude = 0) for 'Individual Loan Upload v3' are returned.
     """
+    upload_name = getattr(settings, "generic_upload_name", None) or "Individual Loan Upload v3"
+    params = {"upload_name": upload_name}
     query = _GENERIC_QUERY
     if table_override:
         logger.info(f"Generic-mapping table override: {table_override}")
@@ -166,13 +168,13 @@ def fetch_generic_mapping_dataframe(
                 financialForms.generic_excel_upload_definition geud
                     ON geudf.master_id = geud.id
             WHERE
-                geud.upload_name = 'Individual Loan Upload v3'
-                AND geud.is_exclude = 0
+                geud.upload_name = :upload_name
+                AND geudf.is_exclude = 0
         """)
  
     logger.info("Fetching generic-excel-upload data from MySQL via SQLAlchemy …")
     with get_engine(settings).connect() as conn:
-        df = pd.read_sql(query, conn)
+        df = pd.read_sql(query, conn, params=params)
  
     logger.info(f"  → {len(df)} generic-mapping rows  (columns: {list(df.columns)})")
     return df
