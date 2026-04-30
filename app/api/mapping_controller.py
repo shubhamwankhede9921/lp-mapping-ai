@@ -91,14 +91,16 @@ def _dbeaver_bulk_insert_sql(
         if not (m.get("partner_field") or "").strip():
             continue
         row = _build_row(m, master_id, client_name, process_name)
-        excel = _sql_single_quoted(row.get("excel_column_name") or "")
+        excel_raw = row.get("excel_column_name") or ""
+        excel = _sql_single_quoted(excel_raw)
         tbl = _sql_single_quoted(row.get("table_column_name") or "")
         pak = _sql_single_quoted(row.get("partner_api_key") or "")
         ui_key = _sql_single_quoted(row.get("ui_key") or "")
         grp = _sql_single_quoted(row.get("ui_grouping") or "OTHER")
+        typ = _sql_single_quoted("date" if "date" in str(excel_raw).lower() else "")
         value_lines.append(
             "("
-            f"0, {int(master_id)}, {excel}, {tbl}, '', '', '', {pak}, '', '', {ui_key}, '', "
+            f"0, {int(master_id)}, {excel}, {tbl}, {typ}, '', '', {pak}, '', {excel}, {ui_key}, '', "
             f"{grp}, '', 0, '', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '', '', '', '', '', 0, '', '', '', 0, ''"
             ")"
         )

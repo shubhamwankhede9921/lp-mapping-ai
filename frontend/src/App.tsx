@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import JSON5 from "json5";
 import * as XLSX from "xlsx";
 import { PipelineOutputAnalysis } from "./components/PipelineOutputAnalysis";
 import type { PipelineAnalysis } from "./utils/pipelineZipAnalysis";
@@ -448,6 +449,10 @@ function countEmptyCells(rows: string[][]) {
   return empties;
 }
 
+function parseLenientJson(text: string): unknown {
+  return JSON5.parse(text);
+}
+
 async function buildPreview(file: File, maxRows: number): Promise<FilePreview> {
   const mime = file.type || "application/octet-stream";
   const lower = file.name.toLowerCase();
@@ -497,12 +502,25 @@ async function buildPreview(file: File, maxRows: number): Promise<FilePreview> {
     }
   }
 
+  if (lower.endsWith(".json")) {
+    const text = await file.text();
+    const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+    const limited = lines.slice(0, Math.max(1, maxRows - 1));
+    const rows = [["JSON text"], ...limited.map((line) => [line])];
+    return {
+      fileName: file.name,
+      mime,
+      rows,
+      truncated: lines.length > limited.length,
+    };
+  }
+
   return {
     fileName: file.name,
     mime,
     rows: [],
     truncated: false,
-    error: "Unsupported file type for preview. Upload .csv/.tsv for in-app preview.",
+    error: "Unsupported file type for preview. Use .xlsx/.xls/.csv/.tsv/.txt/.json.",
   };
 }
 
@@ -528,7 +546,7 @@ function PreviewPanel({ preview }: { preview: FilePreview | null }) {
           </div>
         </div>
         <span className={`badge ${preview.error ? "badge-rose" : "badge-emerald"}`}>
-          <span className="badge-dot"></span> {preview.error ? "Needs CSV" : "Ready"}
+          <span className="badge-dot"></span> {preview.error ? "Preview issue" : "Ready"}
         </span>
       </div>
 
@@ -732,6 +750,8 @@ export default function App() {
 
   const [fpFile, setFpFile] = useState<File | null>(null);
   const [fpPreview, setFpPreview] = useState<FilePreview | null>(null);
+  const [fpSheetFilter, setFpSheetFilter] = useState<string>("");
+  const [fpJsonText, setFpJsonText] = useState<string>("");
   const [fpDone, setFpDone] = useState(false);
   const [fpZipUrl, setFpZipUrl] = useState<string | null>(null);
   const [fpZipName, setFpZipName] = useState<string | null>(null);
@@ -1009,6 +1029,61 @@ export default function App() {
     setFpDbMetrics(null);
   }
 
+  async function loadJsonToText(file: File) {
+    const lower = file.name.toLowerCase();
+    if (!lower.endsWith(".json")) {
+      setGlobalError("Please upload a .json file.");
+      return;
+    }
+    await withLoading(async () => {
+      const text = await file.text();
+      try {
+        const parsed = parseLenientJson(text);
+        setFpJsonText(JSON.stringify(parsed, null, 2));
+      } catch {
+        setFpJsonText(text);
+      }
+    });
+  }
+
+  async function handlePipelineZipResponse(res: Response) {
+    if (!res.ok) {
+      const msg = await res.text();
+      throw new Error(msg || `${res.status} ${res.statusText}`);
+    }
+
+    setFpDbMetrics({
+      inserted: res.headers.get("X-DB-Inserted") ?? "—",
+      skipped: res.headers.get("X-DB-Skipped") ?? "—",
+      errors: res.headers.get("X-DB-Errors") ?? "—",
+    });
+
+    const buf = await res.arrayBuffer();
+    const blob = new Blob([buf], { type: "application/zip" });
+
+    const disp = res.headers.get("content-disposition") ?? "";
+    const match = disp.match(/filename="?([^"]+)"?/i);
+    const fallback = `${clientName}_${processName}_outputs.zip`.replace(/\s+/g, "_");
+    const name = (match?.[1] || fallback).trim();
+
+    setFpPipelineAnalysis(null);
+    setFpPipelineAnalysisErr(null);
+    try {
+      const parsed = await analyzePipelineZipBlob(blob);
+      setFpPipelineAnalysis(parsed);
+    } catch (e) {
+      setFpPipelineAnalysisErr(e instanceof Error ? e.message : String(e));
+    }
+
+    const nextUrl = URL.createObjectURL(blob);
+    setFpZipName(name);
+    setFpZipUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return nextUrl;
+    });
+    setFpDone(true);
+  }
+
   async function runDeterministic() {
     if (!detFile) {
       setGlobalError("Upload a partner file first.");
@@ -1143,6 +1218,39 @@ export default function App() {
       return;
     }
     await withLoading(async () => {
+      const isJsonUpload = fpFile.name.toLowerCase().endsWith(".json");
+      if (isJsonUpload) {
+        const text = await fpFile.text();
+        let payload: unknown;
+        try {
+          payload = parseLenientJson(text);
+          const q = new URLSearchParams();
+          q.set("client_name", clientName);
+          q.set("process_name", processName);
+          q.set("use_fuzzy", String(toggles.fuzzy));
+          q.set("use_embeddings", String(toggles.embeddings));
+          q.set("use_llm", String(toggles.llm));
+          q.set("use_loanparameter_refinement", String(toggles.loanParamRefine));
+          q.set("use_llm_entity_classifier", String(toggles.entityClassifier));
+          q.set("master_id", String(masterId));
+          q.set("save_to_db", String(toggles.saveToDb));
+          q.set("skip_unmatched", String(toggles.skipUnmatched));
+          q.set("include_build_references", String(toggles.includeRefsZip));
+
+          const url = `${apiJoin("/api/llm_mapping/mapping/full-pipeline-json")}?${q.toString()}`;
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          await handlePipelineZipResponse(res);
+          return;
+        } catch {
+          // Fallback: if JSON body parsing fails in UI, still upload file directly.
+          // Backend may still handle this .json file through its own parser path.
+        }
+      }
+
       const fd = new FormData();
       fd.append("file", fpFile);
       fd.append("client_name", clientName);
@@ -1152,46 +1260,53 @@ export default function App() {
       fd.append("use_llm", String(toggles.llm));
       fd.append("use_loanparameter_refinement", String(toggles.loanParamRefine));
       fd.append("use_llm_entity_classifier", String(toggles.entityClassifier));
+      fd.append("sheet_filter", fpSheetFilter.trim());
       fd.append("master_id", String(masterId));
       fd.append("save_to_db", String(toggles.saveToDb));
       fd.append("skip_unmatched", String(toggles.skipUnmatched));
       fd.append("include_build_references", String(toggles.includeRefsZip));
 
       const res = await fetch(apiJoin("/api/llm_mapping/mapping/full-pipeline"), { method: "POST", body: fd });
-      if (!res.ok) {
-        const msg = await res.text();
-        throw new Error(msg || `${res.status} ${res.statusText}`);
-      }
-      setFpDbMetrics({
-        inserted: res.headers.get("X-DB-Inserted") ?? "—",
-        skipped: res.headers.get("X-DB-Skipped") ?? "—",
-        errors: res.headers.get("X-DB-Errors") ?? "—",
-      });
+      await handlePipelineZipResponse(res);
+    });
+  }
 
-      const buf = await res.arrayBuffer();
-      const blob = new Blob([buf], { type: "application/zip" });
+  async function runFullPipelineJson() {
+    const raw = fpJsonText.trim();
+    if (!raw) {
+      setGlobalError("Paste JSON or upload a .json file first.");
+      return;
+    }
 
-      const disp = res.headers.get("content-disposition") ?? "";
-      const match = disp.match(/filename="?([^"]+)"?/i);
-      const fallback = `${clientName}_${processName}_outputs.zip`.replace(/\s+/g, "_");
-      const name = (match?.[1] || fallback).trim();
-
-      setFpPipelineAnalysis(null);
-      setFpPipelineAnalysisErr(null);
+    await withLoading(async () => {
+      let payload: unknown;
       try {
-        const parsed = await analyzePipelineZipBlob(blob);
-        setFpPipelineAnalysis(parsed);
-      } catch (e) {
-        setFpPipelineAnalysisErr(e instanceof Error ? e.message : String(e));
+        payload = parseLenientJson(raw);
+      } catch {
+        throw new Error("Full-pipeline JSON input is not valid JSON.");
       }
 
-      const nextUrl = URL.createObjectURL(blob);
-      setFpZipName(name);
-      setFpZipUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return nextUrl;
+      const q = new URLSearchParams();
+      q.set("client_name", clientName);
+      q.set("process_name", processName);
+      q.set("use_fuzzy", String(toggles.fuzzy));
+      q.set("use_embeddings", String(toggles.embeddings));
+      q.set("use_llm", String(toggles.llm));
+      q.set("use_loanparameter_refinement", String(toggles.loanParamRefine));
+      q.set("use_llm_entity_classifier", String(toggles.entityClassifier));
+      q.set("master_id", String(masterId));
+      q.set("save_to_db", String(toggles.saveToDb));
+      q.set("skip_unmatched", String(toggles.skipUnmatched));
+      q.set("include_build_references", String(toggles.includeRefsZip));
+
+      const url = `${apiJoin("/api/llm_mapping/mapping/full-pipeline-json")}?${q.toString()}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
-      setFpDone(true);
+
+      await handlePipelineZipResponse(res);
     });
   }
 
@@ -2123,22 +2238,30 @@ export default function App() {
                     <input
                       ref={fpInputRef}
                       type="file"
-                      accept=".xlsx,.xls,.csv"
+                      accept=".xlsx,.xls,.csv,.json"
                       onChange={(e) => void onPickFile("fp", e.target.files?.[0] ?? null)}
                     />
                     <div className="upload-icon">🚀</div>
                     <div className="upload-title">{fpFile ? fpFile.name : "Drop partner file here"}</div>
-                    <div className="upload-hint">Supports .xlsx, .xls, .csv</div>
+                    <div className="upload-hint">Supports .xlsx, .xls, .csv, .json (uploaded as file)</div>
                   </div>
 
                   <div className="field">
                     <label className="field-label">Sheet filter (optional)</label>
-                    <input className="field-input" placeholder="e.g. Sheet1" />
+                    <input
+                      className="field-input"
+                      placeholder="e.g. Sheet1"
+                      value={fpSheetFilter}
+                      onChange={(e) => setFpSheetFilter(e.target.value)}
+                    />
                   </div>
 
                   <div className="action-bar">
                     <button className="btn btn-primary" onClick={() => void runFullPipeline()} disabled={loading} type="button">
-                      ▶ Run full pipeline
+                      ▶ Run full pipeline (file)
+                    </button>
+                    <button className="btn btn-secondary" onClick={() => void runFullPipelineJson()} disabled={loading} type="button">
+                      ▶ Run full pipeline (JSON body)
                     </button>
                     <button
                       className="btn btn-secondary"
@@ -2151,6 +2274,34 @@ export default function App() {
                   </div>
 
                   <PreviewPanel preview={fpPreview} />
+
+                  <div className="panel" style={{ marginTop: "1.25rem" }}>
+                    <div className="panel-header">
+                      <div>
+                        <div className="panel-title">JSON input (for /full-pipeline-json)</div>
+                        <div className="panel-desc">Paste JSON, or upload a .json file to populate the editor</div>
+                      </div>
+                      <label className="btn btn-ghost" style={{ position: "relative", overflow: "hidden" }}>
+                        Upload .json
+                        <input
+                          type="file"
+                          accept=".json,application/json"
+                          style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
+                          onChange={(e) => void loadJsonToText(e.target.files?.[0] ?? (null as any))}
+                        />
+                      </label>
+                    </div>
+                    <div className="panel-body">
+                      <textarea
+                        className="field-textarea"
+                        style={{ minHeight: 220 }}
+                        value={fpJsonText}
+                        onChange={(e) => setFpJsonText(e.target.value)}
+                        placeholder='{"any":"json"}'
+                        spellCheck={false}
+                      />
+                    </div>
+                  </div>
 
                   {fpDone && (
                     <div style={{ marginTop: "1rem" }}>
